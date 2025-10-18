@@ -5,7 +5,7 @@ services:
     image: jargonless/api:week0
     container_name: jl_api_week0
     ports:
-      - "8000:8000"
+      - "${HOST_API_PORT:-8000}:8000"
     networks: [webnet]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health'); print('ok')"]
@@ -23,7 +23,7 @@ services:
       api:
         condition: service_healthy
     ports:
-      - "80:80"
+      - "${HOST_HTTP_PORT:-8080}:80"
     volumes:
       - ../nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ../nginx/html:/usr/share/nginx/html:ro
