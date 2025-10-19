@@ -38,6 +38,7 @@ services:
     tmpfs: [/tmp]
     security_opt: [no-new-privileges:true]
     cap_drop: [SYS_ADMIN, NET_ADMIN]
+    ports: [] 
     healthcheck:
       test: ["CMD-SHELL","wget -qO- http://localhost:8000/api/health || exit 1"]
       interval: 10s
