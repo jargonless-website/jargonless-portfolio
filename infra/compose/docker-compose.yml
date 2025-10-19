@@ -1,43 +1,30 @@
-services:
-  api:
-    image: jargonless/api:week0
-    container_name: jl_api_week0
-    ports:
-      - "${HOST_API_PORT:-8000}:8000"
-    networks: [webnet]
-    env_file:
-      - /volume1/docker/portfolio/infra/compose/.env.production
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health'); print('ok')"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
+name: portfolio
 
+networks:
+  webnet:
+    driver: bridge
+
+services:
   nginx:
-    image: nginx:alpine
-    container_name: jl_nginx_week0
+    image: ghcr.io/jargonless-website/portfolio-web:latest
     depends_on:
-      api:
-        condition: service_healthy
+      - api
     ports:
-      - "${HOST_HTTP_PORT:-8080}:80"
-    volumes:
-      - ../nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - /volume1/docker/portfolio/apps/web/dist:/usr/share/nginx/html:ro
+      - "8080:80"
     networks: [webnet]
-    env_file:
-      - /volume1/docker/portfolio/infra/compose/.env.production
+
+  api:
+    image: ghcr.io/jargonless-website/portfolio-api:latest
+    environment:
+      - ENV=${ENV:-development}
+    ports:
+      - "8000:8000"
+    networks: [webnet]
 
   jl_tunnel:
     image: cloudflare/cloudflared:latest
-    container_name: jl_tunnel
     restart: always
-    networks: [webnet]
-    env_file:
-      - /volume1/docker/portfolio/infra/compose/.env.production
-    command: tunnel --config /etc/cloudflared/config.yml run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    command: ["tunnel","--config","/etc/cloudflared/config.yml","run","--token","${CLOUDFLARE_TUNNEL_TOKEN}"]
     volumes:
       - /volume1/docker/portfolio/cloudflared:/etc/cloudflared
-
-networks:
-  webnet: {}
+    networks: [webnet]

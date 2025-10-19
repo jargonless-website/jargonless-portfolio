@@ -3,7 +3,7 @@ __pycache__/
 *.pyc
 .venv/
 .env
-.env.production
+.env.tunnel
 
 # Node
 node_modules/

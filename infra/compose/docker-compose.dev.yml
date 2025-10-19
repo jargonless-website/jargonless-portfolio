@@ -1,0 +1,10 @@
+services:
+  nginx:
+    # Serve local build output during dev if you want to eyeball things
+    volumes:
+      - ./../../apps/web/dist:/usr/share/nginx/html:ro
+
+  api:
+    # Bind mount code for live reload if desired (optional)
+    volumes:
+      - ./../../apps/api:/app

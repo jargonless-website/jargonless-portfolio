@@ -1,0 +1,49 @@
+services:
+  nginx:
+    image: ghcr.io/jargonless-website/portfolio-web:latest
+    pull_policy: always
+    depends_on:
+      - api
+    ports: ["8080:80"]
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - ./../nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./../nginx/snippets:/etc/nginx/snippets:ro
+    read_only: true
+    tmpfs: [/var/cache/nginx, /var/run, /var/log/nginx]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [NET_ADMIN, SYS_ADMIN]
+    healthcheck:
+      test: ["CMD-SHELL","wget -qO- http://localhost/ || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+
+  api:
+    image: ghcr.io/jargonless-website/portfolio-api:latest
+    pull_policy: always
+    restart: unless-stopped
+    env_file:
+      - ./../compose/.env.production
+    environment:
+      - ENV=production
+      - CORS_ORIGINS=https://jargonless.ai
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [SYS_ADMIN, NET_ADMIN]
+    healthcheck:
+      test: ["CMD-SHELL","wget -qO- http://localhost:8000/api/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
