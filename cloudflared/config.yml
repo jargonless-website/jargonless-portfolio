@@ -8,5 +8,10 @@ ingress:
   - hostname: api.jargonless.ai
     service: http://api:8000        # send api subdomain → api container:8000
   - service: http_status:404         # default catch-all
+
+# Top-level (same indent as 'ingress:')
     protocol: http2
+    edge-ip-version: 4
+    no-autoupdate: true
+    ha-connections: 4
 
