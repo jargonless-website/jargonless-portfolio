@@ -14,6 +14,7 @@ services:
     read_only: true
     tmpfs: [/var/cache/nginx, /var/run, /var/log/nginx]
     security_opt: [no-new-privileges:true]
+    port : []
     cap_drop: [NET_ADMIN, SYS_ADMIN]
     healthcheck:
       test: ["CMD-SHELL","wget -qO- http://localhost/ || exit 1"]
