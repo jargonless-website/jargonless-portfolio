@@ -10,7 +10,6 @@ x-common-resources: &common_resources
 
 services:
   nginx:
-    pull_policy: always
     restart: unless-stopped
     ports: []                       # <— no host port in prod
     environment: [NODE_ENV=production]
@@ -31,7 +30,6 @@ services:
     <<: *common_resources
 
   api:
-    pull_policy: always
     restart: unless-stopped
     env_file:
       - ./../compose/.env.production
