@@ -11,7 +11,7 @@ ingress:
 
 # Top-level (same indent as 'ingress:')
 protocol: http2
-edge-ip-version: 4
+edge-ip-version: "4"
 no-autoupdate: true
 ha-connections: 4
 
