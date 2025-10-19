@@ -26,7 +26,13 @@ services:
       - ./../compose/.env.production
       - ./../compose/.env.tunnel
     # Use shell so $CLOUDFLARE_TUNNEL_TOKEN expands at runtime
-    command: ["/bin/sh","-lc","cloudflared tunnel --config /etc/cloudflared/config.yml run --token \"$CLOUDFLARE_TUNNEL_TOKEN\""]
+    command: 
+      - tunnel
+      - --config
+      - /etc/cloudflared/config.yml
+      - run
+      - --token
+      - ${CLOUDFLARE_TUNNEL_TOKEN}
     volumes:
       - /volume1/docker/portfolio/cloudflared:/etc/cloudflared
     networks: [webnet]
