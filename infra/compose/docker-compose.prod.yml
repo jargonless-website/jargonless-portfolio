@@ -10,8 +10,9 @@ x-common-resources: &common_resources
 
 services:
   nginx:
+    container_name: portfolio-nginx-1            # <— add this
     restart: unless-stopped
-    ports: []                       # <— no host port in prod
+    ports: []                                     # no host port in prod
     environment: [NODE_ENV=production]
     volumes:
       - ./../nginx/nginx.conf:/etc/nginx/nginx.conf:ro
@@ -30,13 +31,14 @@ services:
     <<: *common_resources
 
   api:
+    container_name: portfolio-api-1              # <— add this
     restart: unless-stopped
     env_file:
-      - ./../compose/.env.production
+      - ./.env.production                         # <— keep it relative to THIS file
     environment:
       - ENV=production
       - CORS_ORIGINS=https://jargonless.ai
-    ports: []                       # <— no host port in prod
+    ports: []                                     # no host port in prod
     read_only: true
     tmpfs: [/tmp]
     security_opt: [no-new-privileges:true]
@@ -49,3 +51,13 @@ services:
       start_period: 10s
     logging: *common_logging
     <<: *common_resources
+
+  jl_tunnel:                                      # <— add this whole service
+    container_name: portfolio-jl_tunnel-1
+    image: cloudflare/cloudflared:latest
+    restart: always
+    command: ["tunnel","--config","/etc/cloudflared/config.yml","run","--token","${CLOUDFLARE_TUNNEL_TOKEN}"]
+    env_file:
+      - ./.env.tunnel                             # lives next to this compose file
+    volumes:
+      - /volume1/docker/portfolio/cloudflared:/etc/cloudflared
