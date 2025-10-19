@@ -44,7 +44,12 @@ services:
     security_opt: [no-new-privileges:true]
     cap_drop: [SYS_ADMIN, NET_ADMIN]
     healthcheck:
-      test: ["CMD-SHELL","wget -qO- http://localhost:8000/api/health || exit 1"]
+      test:
+        - CMD-SHELL
+        - >
+          python -c "import sys,urllib.request,socket;
+          socket.setdefaulttimeout(3);
+          sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health').getcode()==200 else 1)"
       interval: 10s
       timeout: 3s
       retries: 10
