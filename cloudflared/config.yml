@@ -4,7 +4,7 @@
 
 ingress:
   - hostname: jargonless.ai
-    service: http://nginx:80
+    service: http://nginx:80        # send root domain → nginx container:80
   - hostname: api.jargonless.ai
-    service: http://api:8000
-  - service: http_status:404
+    service: http://api:8000        # send api subdomain → api container:8000
+  - service: http_status:404         # default catch-all

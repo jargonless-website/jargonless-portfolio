@@ -7,24 +7,26 @@ networks:
 services:
   nginx:
     image: ghcr.io/jargonless-website/portfolio-web:latest
-    depends_on:
-      - api
-    ports:
-      - "8080:80"
+    depends_on: [api]
+    expose: ["80"]              # internal only
     networks: [webnet]
 
   api:
     image: ghcr.io/jargonless-website/portfolio-api:latest
     environment:
       - ENV=${ENV:-development}
-    ports:
-      - "8000:8000"
+    expose: ["8000"]            # internal only
     networks: [webnet]
 
   jl_tunnel:
     image: cloudflare/cloudflared:latest
     restart: always
-    command: ["tunnel","--config","/etc/cloudflared/config.yml","run","--token","${CLOUDFLARE_TUNNEL_TOKEN}"]
+    # Read token from env files (prod will supply them)
+    env_file:
+      - ./../compose/.env.production
+      - ./../compose/.env.tunnel
+    # Use shell so $CLOUDFLARE_TUNNEL_TOKEN expands at runtime
+    command: ["/bin/sh","-lc","cloudflared tunnel --config /etc/cloudflared/config.yml run --token \"$CLOUDFLARE_TUNNEL_TOKEN\""]
     volumes:
       - /volume1/docker/portfolio/cloudflared:/etc/cloudflared
     networks: [webnet]
