@@ -1,165 +1,111 @@
-# 🧠 Jargonless Portfolio — Week 3 Production Launch
+# 🧠 Jargonless Portfolio — Week **3.5** (Cloudflare Public Launch)
 
-![Build](https://img.shields.io/github/actions/workflow/status/jargonless-website/jargonless-portfolio/ci-week3.yml?label=Build&logo=github)
 ![React](https://img.shields.io/badge/Frontend-React%2018-61dafb?logo=react)
-![Tailwind](https://img.shields.io/badge/UI-TailwindCSS%20via%20CDN-38bdf8?logo=tailwindcss)
 ![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi)
 ![Nginx](https://img.shields.io/badge/Proxy-Nginx-009639?logo=nginx)
 ![Docker Compose](https://img.shields.io/badge/Infra-Docker%20Compose-blue?logo=docker)
+![Cloudflare](https://img.shields.io/badge/Edge-Cloudflare%20Tunnel-F38020?logo=cloudflare)
 ![License](https://img.shields.io/badge/License-Private-darkred)
 
-**Self-hosted analytics and machine-learning portfolio**, following the official Jargonless Blueprint.
+**Self‑hosted analytics + ML portfolio**. This release finalises **Week 3.5** — Cloudflare integration and *public* availability of the NAS‑hosted stack.
 
-_Last updated: October 2025_
-
----
-
-## 🧩 What is here
-
-- ✅ **React + Vite app** (Week 1 milestone, “Coming Soon” landing page)
-  - Responsive layout with Jargonless logo, Tailwind CDN, and live reload
-  - Uses real `favicon.png` (32×32) and `logo-1024.png` for page and preview
-- ✅ **FastAPI service** with `GET /api/health`
-- ✅ **Nginx reverse proxy** serving the built React app and proxying `/api/*` to FastAPI
-- ✅ **Docker Compose stack** (`nginx` + `api`) unified for dev/prod with env vars for ports (8080/8000)
-- ✅ **Healthcheck** for `api` using Python `urllib.request` (so `nginx` waits until API is ready)
-- ✅ **Environment files** under `infra/compose`: `.env`, `.env.production`, `.env.example`
-- ✅ **Deployed successfully to Synology NAS (DS1522+)**
-  - DSM 7.2.1-69057 Update 8, Docker 24.0.2-1543
-  - Path: `/docker/portfolio`
-  - LAN Access: http://192.168.86.46:8080 (web), http://192.168.86.46:8000/api/health (api)
-- ✅ **Makefile helpers** (optional) for `dev`, `prod`, `down`, `logs`
-
-> **Local endpoints**
-> - Web (Nginx): http://localhost:8080  
-> - API (proxied): http://localhost:8080/api/health → `{"ok": true}`  
-> - API direct: http://localhost:8000/api/health
+_Last updated: Oct 2025_
 
 ---
 
-## 📅 Project Roadmap (per Blueprint)
-
-| Week | Milestone | Description | Status |
-|------|-----------|-------------|--------|
-| **0** | **Repo & Skeleton** | Monorepo + base layout | ✅ Completed |
-| **1** | **React Coming Soon** | Vite + React app, Tailwind CDN, favicon + logo integrated | ✅ Completed |
-| **2** | **IaC Baseline** | Compose stack (Nginx + API) validated locally + healthchecks + env files | ✅ Completed |
-| **3** | **Production Launch** | Stack deployed to Synology NAS on LAN | ✅ **Completed** |
-| **3.5** | **Terraform (Cloudflare)** | Manage Cloudflare DNS, Tunnel, and Zero Trust as code | 🔜 Planned |
-| **4** | **CI/CD Automation** | GitHub Actions: build web, sync to NAS, `docker compose up -d` over SSH | 🔜 Pending |
-| **5** | **Strapi Integration** | CMS with `Post` type (enum: Power BI / Grafana / Notebook / ML) | 🔜 Pending |
-| **6–9** | **Content Embeds & ML Demo** | Power BI / Grafana / Notebook posts + `/api/predict` demo page | 🔜 Pending |
-| **10–11** | **Security + Observability + Backup** | Security headers, rate limiting, Grafana ops dashboard, nightly `pg_dump` | 🔜 Pending |
+## ✅ What’s new in 3.5
+- **Cloudflare Tunnel live** for `jargonless.ai` and `api.jargonless.ai` (no router ports).
+- **Compose made prod‑parity** (same file for dev/prod; env files control behaviour).
+- **Explicit env file loading on Synology** (`/volume1/.../.env.production`).  
+- **cloudflared** fixed to run by **token**:  
+  `command: tunnel --config /etc/cloudflared/config.yml run --token ${CLOUDFLARE_TUNNEL_TOKEN}`
+- **Ingress config** switched to **Docker service names** (`nginx`, `api`) for reliable DNS on the project network.
 
 ---
 
-## 🧰 Repository Structure
+## 🌐 Runtime summary (NAS)
+- **NAS:** DS1522+ (DSM 7.2.x), Docker 24.x  
+- **Root path:** `/volume1/docker/portfolio`
+- **Public:** https://jargonless.ai  
+- **LAN:** `http://<NAS-IP>:8080` (web), `http://<NAS-IP>:8000/api/health` (api)
 
+### Folders
 ```
-portfolio/
-  apps/
-    web/            # React app (Week 1)
-    api/            # FastAPI service (Week 2)
-  infra/
-    compose/        # Docker Compose + envs
-      .env
-      .env.production
-      .env.example
-      docker-compose.yml
-    nginx/          # Reverse proxy + security headers
-      nginx.conf
-      html/         # built React app for Nginx
-  .github/workflows # CI/CD pipelines (Week 4+)
-  Makefile          # optional helpers
-  README.md
-```
-
----
-
-## ▶️ How to run
-
-### Local (dev)
-```bash
-cd infra/compose
-docker compose up -d                    # uses .env
-# or
-docker compose --env-file .env -f docker-compose.yml up -d
+/volume1/docker/portfolio/
+├── apps/
+│   ├── web/                # Vite app; built into /dist
+│   └── api/                # FastAPI (image: jargonless/api:week0)
+├── infra/
+│   ├── compose/
+│   │   ├── docker-compose.yml
+│   │   ├── .env            # local (ignored)
+│   │   ├── .env.production # prod (NOT in git)
+│   └── nginx/nginx.conf
+└── cloudflared/
+    └── config.yml          # ingress rules
 ```
 
-### Production (NAS)
-```bash
-cd /docker/portfolio
-docker compose --env-file infra/compose/.env.production -f infra/compose/docker-compose.yml up -d --build
+### Key files
+**`infra/compose/docker-compose.yml` (relevant parts)**
+```yaml
+services:
+  nginx:
+    image: nginx:alpine
+    volumes:
+      - /volume1/docker/portfolio/infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - /volume1/docker/portfolio/apps/web/dist:/usr/share/nginx/html:ro
+  jl_tunnel:
+    image: cloudflare/cloudflared:latest
+    env_file:
+      - /volume1/docker/portfolio/infra/compose/.env.production
+    command: tunnel --config /etc/cloudflared/config.yml run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    volumes:
+      - /volume1/docker/portfolio/cloudflared:/etc/cloudflared
 ```
 
-**Verify**
-```bash
-curl http://192.168.86.46:8080/api/health
-curl -I http://192.168.86.46:8080
+**`cloudflared/config.yml`**
+```yaml
+ingress:
+  - hostname: jargonless.ai
+    service: http://nginx:80
+  - hostname: api.jargonless.ai
+    service: http://api:8000
+  - service: http_status:404
 ```
 
----
-
-## ⚙️ Environment files
-
-**infra/compose/.env.example**
-```
-PORTFOLIO_ENV=development
-DOMAIN=localhost
-HOST_HTTP_PORT=8080
-HOST_API_PORT=8000
-```
-
-**infra/compose/.env.production**
+**`infra/compose/.env.production`**
 ```
 PORTFOLIO_ENV=production
-DOMAIN=jargonless.com
+DOMAIN=jargonless.ai
 HOST_HTTP_PORT=8080
 HOST_API_PORT=8000
+CLOUDFLARE_TUNNEL_TOKEN=<paste real token>
 ```
 
 ---
 
-## 🛡️ Security & headers (baseline)
-
-Nginx sets baseline headers (can be expanded later):
-
-```
-X-Frame-Options: SAMEORIGIN
-X-Content-Type-Options: nosniff
-Referrer-Policy: strict-origin-when-cross-origin
-```
-
-CSP and rate limiting will be finalised in the **Security** milestone.
+## 🧪 Verify
+- Container Manager → **Containers**: `jl_nginx_week0`, `jl_api_week0` (healthy), `jl_tunnel` (running).
+- Tunnel logs show: **“Connection established”** + **“Registered ingress”**.
+- Browser: https://jargonless.ai renders identically to `http://<NAS-IP>:8080`.
 
 ---
 
-## 🌐 Production summary
-
-- **Host:** Synology NAS DS1522+ (DSM 7.2.1-69057 Update 8, Docker 24.0.2-1543)
-- **Path:** `/docker/portfolio`
-- **LAN URLs:**  
-  - Web: http://192.168.86.46:8080  
-  - API: http://192.168.86.46:8000/api/health
-- **Next:** Cloudflare Tunnel (DNS still at GoDaddy, migration to Cloudflare Free planned)
-
----
-
-## 🧭 Terraform Stage (3.5)
-
-- Manage Cloudflare DNS + Tunnel as code.  
-- Optional Zero Trust Access for `/cms` and `/grafana`.  
-- CI will trigger Terraform → deploy to NAS.
+## 📅 Roadmap
+| Week | Milestone | Status |
+|------|-----------|--------|
+| 0 | Repo & skeleton | ✅ |
+| 1 | React landing (Vite) | ✅ |
+| 2 | Nginx + FastAPI + Compose | ✅ |
+| 3 | NAS deployment (LAN) | ✅ |
+| **3.5** | **Cloudflare public launch** | **✅** |
+| 4 | CI/CD to NAS (GitHub Actions) | 🔜 |
+| 5 | Strapi CMS | 🔜 |
 
 ---
 
-## 🧾 Notes
+## 🔒 Notes
+- Secrets never in git. `.env.production` only on NAS.
+- For now, API image shipped as local tar (`docker save/load`). CI (Week 4) will replace this with registry pushes.
 
-- **Parity by design:** the same Compose file runs locally and in production.  
-- **No secrets in Git.** Use env files locally and GitHub Secrets in CI.  
-- **Healthcheck:** Python-based internal test to ensure API readiness.  
-- **Next milestone:** Week 4 — CI/CD automation via GitHub Actions.  
-
----
-
-© 2025 William Reed · Jargonless · All rights reserved
+© 2025 William Reed · Jargonless — All rights reserved

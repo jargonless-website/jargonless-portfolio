@@ -1,20 +1,17 @@
 services:
   api:
-    build:
-      context: ../../apps/api
     image: jargonless/api:week0
     container_name: jl_api_week0
     ports:
       - "${HOST_API_PORT:-8000}:8000"
     networks: [webnet]
+    env_file:
+      - /volume1/docker/portfolio/infra/compose/.env.production
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health'); print('ok')"]
       interval: 10s
       timeout: 3s
       retries: 5
-    environment:
-      PORTFOLIO_ENV: ${PORTFOLIO_ENV:-development}
-      DOMAIN: ${DOMAIN:-localhost}
 
   nginx:
     image: nginx:alpine
@@ -26,11 +23,21 @@ services:
       - "${HOST_HTTP_PORT:-8080}:80"
     volumes:
       - ../nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ../nginx/html:/usr/share/nginx/html:ro
+      - /volume1/docker/portfolio/apps/web/dist:/usr/share/nginx/html:ro
     networks: [webnet]
-    environment:
-      PORTFOLIO_ENV: ${PORTFOLIO_ENV:-development}
-      DOMAIN: ${DOMAIN:-localhost}
+    env_file:
+      - /volume1/docker/portfolio/infra/compose/.env.production
+
+  jl_tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: jl_tunnel
+    restart: always
+    networks: [webnet]
+    env_file:
+      - /volume1/docker/portfolio/infra/compose/.env.production
+    command: tunnel --config /etc/cloudflared/config.yml run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    volumes:
+      - /volume1/docker/portfolio/cloudflared:/etc/cloudflared
 
 networks:
   webnet: {}

@@ -1,0 +1,10 @@
+# Cloudflared ingress mapping through the Tunnel
+# Hostnames must exist in Cloudflare DNS and point to your tunnel CNAME (Terraform created these).
+# Services below must match your Docker service names + internal ports.
+
+ingress:
+  - hostname: jargonless.ai
+    service: http://nginx:80
+  - hostname: api.jargonless.ai
+    service: http://api:8000
+  - service: http_status:404

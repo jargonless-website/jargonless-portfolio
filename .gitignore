@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 .venv/
 .env
+.env.production
 
 # Node
 node_modules/
@@ -15,3 +16,15 @@ Thumbs.db
 
 # Docker
 *.log
+
+# Ignore Terraform local state and secrets
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfvars
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform.tfstate
+terraform.tfstate.backup
+
+# Ignore .tar image files
+*.tar
