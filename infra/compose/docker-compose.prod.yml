@@ -51,7 +51,3 @@ services:
       start_period: 10s
     logging: *common_logging
     <<: *common_resources
-
-  jl_tunnel:
-    # no ports; just ensure env_file is present in base (done) and target nginx:80 in Cloudflare
-    # no extra settings needed here in prod override
