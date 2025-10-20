@@ -64,11 +64,3 @@ jobs:
               -f infra/compose/docker-compose.prod.yml \
               --env-file infra/compose/.env.production.stg \
               up -d --remove-orphans nginx api
-
-            # network exists now; start cloudflared-staging if missing
-            if ! docker ps --format '{{.Names}}' | grep -q '^cloudflared-staging$'; then
-              docker run -d --name cloudflared-staging --restart unless-stopped \
-                --network portfolio-stg_default \
-                -v /volume1/docker/portfolio/cloudflared-staging:/etc/cloudflared \
-                cloudflare/cloudflared:latest tunnel run
-            fi
