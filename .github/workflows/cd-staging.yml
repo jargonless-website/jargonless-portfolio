@@ -113,6 +113,7 @@ jobs:
             echo "::error file=infra/nginx/nginx.staging.conf::Missing staging nginx configuration file."
             exit 1
           fi
+          cp infra/nginx/nginx.staging.conf infra/nginx/nginx.conf
           mkdir -p infra/nginx/snippets
 
       - name: Ensure Cloudflared volume directory exists
