@@ -2,9 +2,6 @@
 __pycache__/
 *.pyc
 .venv/
-.env
-.env.tunnel
-.env.runner
 
 # Node
 node_modules/
@@ -29,3 +26,15 @@ terraform.tfstate.backup
 
 # Ignore .tar image files
 *.tar
+
+# security reports
+gitleaks-reports*.json
+gitleaks-*.sarif
+
+# env and tunnel creds
+.env
+.env.tunnel
+.env.runner
+infra/compose/.env*
+!infra/compose/.env*.example
+cloudflared/
