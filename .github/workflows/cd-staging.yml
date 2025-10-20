@@ -92,9 +92,21 @@ jobs:
               missing=1
             fi
           done
+          if [ -f infra/compose/.env.tunnel.stg ]; then
+            token_value="$(grep -E '^CLOUDFLARE_TUNNEL_TOKEN=' infra/compose/.env.tunnel.stg | head -n1 | cut -d'=' -f2-)"
+            if [ -z "${token_value}" ]; then
+              echo "::error file=infra/compose/.env.tunnel.stg::CLOUDFLARE_TUNNEL_TOKEN is empty. Update the file or STAGING_TUNNEL_TOKEN secret with a valid token."
+              missing=1
+            fi
+          fi
           if [ "$missing" -ne 0 ]; then
             exit 1
           fi
+
+      - name: Ensure Cloudflared volume directory exists
+        run: |
+          set -euo pipefail
+          mkdir -p "${TUNNEL_VOLUME}"
 
       - name: Log in to GHCR
         uses: docker/login-action@v3

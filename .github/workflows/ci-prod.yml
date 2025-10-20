@@ -17,6 +17,7 @@ jobs:
       WORKSPACE_ROOT: /work/.deploy/prod
       PROD_ENV_FILE_CONTENT: ${{ secrets.PROD_ENV_FILE }}
       PROD_TUNNEL_TOKEN: ${{ secrets.PROD_TUNNEL_TOKEN }}
+      TUNNEL_VOLUME: /volume1/docker/portfolio/cloudflared
 
     # Run every shell step from the repo mount inside the runner container
     defaults:
@@ -91,9 +92,23 @@ jobs:
               missing=1
             fi
           done
+          if [ -f infra/compose/.env.tunnel ]; then
+            token_value="$(grep -E '^CLOUDFLARE_TUNNEL_TOKEN=' infra/compose/.env.tunnel | head -n1 | cut -d'=' -f2-)"
+            if [ -z "${token_value}" ]; then
+              echo "::error file=infra/compose/.env.tunnel::CLOUDFLARE_TUNNEL_TOKEN is empty. Update the file or PROD_TUNNEL_TOKEN secret with a valid token."
+              missing=1
+            fi
+          fi
           if [ "$missing" -ne 0 ]; then
             exit 1
           fi
+
+      - name: Ensure Cloudflared volume directory exists
+        env:
+          TUNNEL_VOLUME: ${{ env.TUNNEL_VOLUME || '/volume1/docker/portfolio/cloudflared' }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${TUNNEL_VOLUME}"
 
       - name: Pull images (latest)
         run: |
