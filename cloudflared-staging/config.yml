@@ -1,0 +1,18 @@
+# Cloudflared ingress mapping through the Tunnel
+# Hostnames must exist in Cloudflare DNS and point to your tunnel CNAME (Terraform created these).
+# Services below must match your Docker service names + internal ports.
+
+tunnel: bffd373b-604d-4fb3-b8ae-03cf6d779f6c
+
+ingress:
+  - hostname: staging.jargonless.ai
+    service: http://nginx:80        # send root domain → nginx container:80
+  - hostname: api.staging.jargonless.ai
+    service: http://api:8000        # send api subdomain → api container:8000
+  - service: http_status:404         # default catch-all
+
+# Top-level (same indent as 'ingress:')
+protocol: http2
+edge-ip-version: "4"
+no-autoupdate: true
+ha-connections: 4
