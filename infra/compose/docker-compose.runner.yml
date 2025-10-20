@@ -1,0 +1,14 @@
+services:
+  gh_runner:
+    image: myoung34/github-runner:latest
+    container_name: jl_gh_runner
+    restart: unless-stopped
+    env_file:
+      - ./.env.runner
+    environment:
+      RUNNER_SCOPE: repo                  # register at the REPO level
+      DOCKER_ENABLED: "true"              # let actions use Docker on the host
+      TZ: "UTC"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock   # control host Docker
+      - /volume1/docker/portfolio:/work             # optional, handy for scripts

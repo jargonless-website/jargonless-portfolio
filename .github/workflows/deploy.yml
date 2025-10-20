@@ -1,0 +1,61 @@
+name: build-and-deploy
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    name: Build & push images to GHCR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write     # needed to push to GHCR
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USER }}" --password-stdin
+
+      - name: Build & push WEB
+        run: |
+          docker build -t ghcr.io/jargonless-website/portfolio-web:${{ github.sha }} ./apps/web
+          docker tag ghcr.io/jargonless-website/portfolio-web:${{ github.sha }} ghcr.io/jargonless-website/portfolio-web:latest
+          docker push ghcr.io/jargonless-website/portfolio-web:${{ github.sha }}
+          docker push ghcr.io/jargonless-website/portfolio-web:latest
+
+      - name: Build & push API
+        run: |
+          docker build -t ghcr.io/jargonless-website/portfolio-api:${{ github.sha }} ./apps/api
+          docker tag ghcr.io/jargonless-website/portfolio-api:${{ github.sha }} ghcr.io/jargonless-website/portfolio-api:latest
+          docker push ghcr.io/jargonless-website/portfolio-api:${{ github.sha }}
+          docker push ghcr.io/jargonless-website/portfolio-api:latest
+
+  deploy:
+    name: SSH deploy to NAS
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull latest git + compose up
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.NAS_HOST }}
+          username: ${{ secrets.NAS_USER }}
+          key: ${{ secrets.NAS_SSH_KEY }}
+          port: ${{ secrets.NAS_SSH_PORT }}
+          script: |
+            set -e
+            cd /volume1/docker/portfolio
+            git pull
+            # ensure GHCR login (if the NAS ever logs out)
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USER }}" --password-stdin
+            # pull images that we just pushed
+            docker compose -f infra/compose/docker-compose.yml -f infra/compose/docker-compose.prod.yml \
+              pull nginx api
+            # restart only what changed; keep tunnel up
+            docker compose -f infra/compose/docker-compose.yml -f infra/compose/docker-compose.prod.yml \
+              --env-file infra/compose/.env.tunnel \
+              up -d --no-deps nginx api
+            # show statuses
+            docker ps --format 'table {{.Names}}\t{{.Status}}' | grep -E 'portfolio-(nginx|api|jl_tunnel)-1'
