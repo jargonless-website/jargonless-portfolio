@@ -61,9 +61,13 @@ services:
     container_name: "${STACK_NAME:-portfolio}-jl_tunnel-1"
     image: cloudflare/cloudflared:latest
     restart: always
-    entrypoint: ["/bin/sh","-c"]
-    command: >
-      tunnel --config /etc/cloudflared/config.yml run --token "$CLOUDFLARE_TUNNEL_TOKEN"
+    command:
+      - tunnel
+      - --config
+      - /etc/cloudflared/config.yml
+      - run
+      - --token
+      - ${CLOUDFLARE_TUNNEL_TOKEN}
     env_file:
       - ${TUNNEL_ENV_FILE:-./.env.tunnel}
     volumes:
