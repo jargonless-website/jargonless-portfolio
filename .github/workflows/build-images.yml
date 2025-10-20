@@ -1,31 +1,41 @@
-name: Build & push images to GHCR
+name: Build & Push Images
 
 on:
   push:
     branches: [ main ]
 
-permissions:
-  contents: read
-  packages: write
-
 jobs:
-  build:
+  build-and-push:
     if: github.event_name != 'pull_request'
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Log in to GHCR
-        run: echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USER }}" --password-stdin
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ secrets.GHCR_USER }}
+          password: ${{ secrets.GHCR_TOKEN }}
 
-      - name: Build & push WEB (latest + SHA)
+      # optional: avoid Docker Hub flakiness
+      - name: Pre-pull base images (retry)
+        run: |
+          set -e
+          for i in 1 2 3; do docker pull node:20-alpine && break || sleep 5; done
+          for i in 1 2 3; do docker pull nginx:1.27-alpine && break || sleep 5; done
+          for i in 1 2 3; do docker pull python:3.11-slim && break || sleep 5; done
+
+      - name: Build & push WEB
         run: |
           docker build -t ghcr.io/jargonless-website/portfolio-web:${{ github.sha }} ./apps/web
           docker tag ghcr.io/jargonless-website/portfolio-web:${{ github.sha }} ghcr.io/jargonless-website/portfolio-web:latest
           docker push ghcr.io/jargonless-website/portfolio-web:${{ github.sha }}
           docker push ghcr.io/jargonless-website/portfolio-web:latest
 
-      - name: Build & push API (latest + SHA)
+      - name: Build & push API
         run: |
           docker build -t ghcr.io/jargonless-website/portfolio-api:${{ github.sha }} ./apps/api
           docker tag ghcr.io/jargonless-website/portfolio-api:${{ github.sha }} ghcr.io/jargonless-website/portfolio-api:latest

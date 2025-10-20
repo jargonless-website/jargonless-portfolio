@@ -6,25 +6,37 @@ on:
 
 jobs:
   compose-validate:
-    if: github.event_name != 'pull_request'
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Prepare dummy env files for Compose validation
         run: |
           mkdir -p infra/compose
+          cat > infra/compose/.env.tunnel <<'EOF'
+          CLOUDFLARE_TUNNEL_TOKEN=dummy
+          DOMAIN=jargonless.ai
+          HOST_HTTP_PORT=8080
+          HOST_API_PORT=8000
+          NODE_ENV=production
+          PORTFOLIO_ENV=production
+          EOF
+
           cat > infra/compose/.env.production <<'EOF'
           ENV=production
           CORS_ORIGINS=https://jargonless.ai
           EOF
+
           cat > infra/compose/.env.production.stg <<'EOF'
           ENV=staging
           CORS_ORIGINS=https://staging.jargonless.ai
           EOF
 
-      - name: Validate Compose
+      - name: Validate compose files
         run: |
           docker compose -f infra/compose/docker-compose.yml config -q
           docker compose -f infra/compose/docker-compose.prod.yml config -q || true
