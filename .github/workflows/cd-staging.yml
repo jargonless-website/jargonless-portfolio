@@ -36,10 +36,13 @@ jobs:
           if [ ! -d .git ]; then
             git clone https://github.com/jargonless-website/jargonless-portfolio .
           fi
-          git fetch origin staging
-          git reset --hard
+          git fetch --prune origin
           git clean -fd
-          git checkout staging || git checkout -B staging origin/staging
+          if git rev-parse --verify staging >/dev/null 2>&1; then
+            git checkout --force staging
+          else
+            git checkout -B staging origin/staging
+          fi
           git reset --hard origin/staging
           git clean -fd
 
