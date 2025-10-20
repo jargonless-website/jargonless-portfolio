@@ -15,6 +15,7 @@ env:
   TUNNEL_VOLUME: /volume1/docker/portfolio/cloudflared-staging
   WEB_IMAGE_TAG: staging
   API_IMAGE_TAG: staging
+  WORKSPACE_ROOT: /work/.deploy/staging
 
 concurrency:
   group: cd-staging-${{ github.ref }}
@@ -29,7 +30,7 @@ jobs:
       - name: Mark NAS repo mount as safe
         run: git config --global --add safe.directory /work
 
-      - name: Sync repo on NAS (/work)
+      - name: Prepare clean workspace snapshot
         working-directory: /work
         run: |
           set -euo pipefail
@@ -37,15 +38,21 @@ jobs:
             git clone https://github.com/jargonless-website/jargonless-portfolio .
           fi
           git fetch --prune origin
-          git reset --hard HEAD
-          git clean -fd
-          if git rev-parse --verify staging >/dev/null 2>&1; then
-            git checkout --force staging
-          else
-            git checkout -B staging origin/staging
-          fi
-          git reset --hard origin/staging
-          git clean -fd
+          rm -rf "${WORKSPACE_ROOT}"
+          mkdir -p "${WORKSPACE_ROOT}"
+          git archive origin/staging | tar -x -C "${WORKSPACE_ROOT}"
+          for secret in \
+            infra/compose/.env.production.stg \
+            infra/compose/.env.tunnel.stg \
+            infra/compose/.env.production \
+            infra/compose/.env.tunnel \
+            infra/compose/.env.runner
+          do
+            if [ -f "/work/${secret}" ]; then
+              mkdir -p "${WORKSPACE_ROOT}/$(dirname "${secret}")"
+              cp "/work/${secret}" "${WORKSPACE_ROOT}/${secret}"
+            fi
+          done
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -55,7 +62,7 @@ jobs:
           password: ${{ secrets.GHCR_TOKEN }}
 
       - name: Build & push WEB (staging)
-        working-directory: /work
+        working-directory: ${{ env.WORKSPACE_ROOT }}
         run: |
           set -euo pipefail
           docker build -t ${IMAGE_WEB}:${GITHUB_SHA} ./apps/web
@@ -64,7 +71,7 @@ jobs:
           docker push ${IMAGE_WEB}:${WEB_IMAGE_TAG}
 
       - name: Build & push API (staging)
-        working-directory: /work
+        working-directory: ${{ env.WORKSPACE_ROOT }}
         run: |
           set -euo pipefail
           docker build -t ${IMAGE_API}:${GITHUB_SHA} ./apps/api
@@ -73,7 +80,7 @@ jobs:
           docker push ${IMAGE_API}:${API_IMAGE_TAG}
 
       - name: Deploy stack (staging)
-        working-directory: /work
+        working-directory: ${{ env.WORKSPACE_ROOT }}
         env:
           COMPOSE_PROJECT_NAME: ${{ env.COMPOSE_PROJECT_NAME }}
           STACK_NAME: ${{ env.STACK_NAME }}
