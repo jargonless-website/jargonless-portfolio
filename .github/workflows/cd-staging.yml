@@ -64,6 +64,37 @@ jobs:
             fi
           done
 
+      - name: Sync staging assets from NAS
+        run: |
+          set -euo pipefail
+          missing=0
+          for file in "${APP_ENV_FILE_HOST}" "${TUNNEL_ENV_FILE_HOST}"; do
+            if [ ! -f "$file" ]; then
+              echo "::error file=$file::Expected staging env file on NAS."
+              missing=1
+            fi
+          done
+          if [ ! -f "${NGINX_CONFIG_PATH_HOST}" ]; then
+            echo "::error file=${NGINX_CONFIG_PATH_HOST}::Missing staging nginx config on NAS."
+            missing=1
+          fi
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+          mkdir -p "$(dirname "${APP_ENV_FILE}")"
+          cp "${APP_ENV_FILE_HOST}" "${APP_ENV_FILE}"
+          mkdir -p "$(dirname "${TUNNEL_ENV_FILE}")"
+          cp "${TUNNEL_ENV_FILE_HOST}" "${TUNNEL_ENV_FILE}"
+
+          mkdir -p "$(dirname "${NGINX_CONFIG_PATH}")"
+          cp "${NGINX_CONFIG_PATH_HOST}" "${NGINX_CONFIG_PATH}"
+
+          mkdir -p "${NGINX_SNIPPETS_PATH}"
+          if [ -d "${NGINX_SNIPPETS_PATH_HOST}" ]; then
+            cp -R "${NGINX_SNIPPETS_PATH_HOST}/." "${NGINX_SNIPPETS_PATH}/"
+          fi
+
       - name: Verify staging env files on NAS
         run: |
           set -euo pipefail
