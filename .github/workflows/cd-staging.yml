@@ -16,9 +16,9 @@ env:
   COMPOSE_PROJECT_NAME: portfolio-stg
   WORKSPACE_ROOT: /work/.deploy/staging
   HOST_PROJECT_ROOT: /work
-  APP_ENV_FILE: /work/infra/compose/.env.production.stg
-  TUNNEL_ENV_FILE: /work/infra/compose/.env.tunnel.stg
-  TUNNEL_VOLUME: /work/cloudflared-staging
+  HOST_ENV_FILE: /work/infra/compose/.env.production.stg
+  HOST_TUNNEL_FILE: /work/infra/compose/.env.tunnel.stg
+  HOST_TUNNEL_VOLUME: /volume1/docker/portfolio/cloudflared-staging
   WEB_IMAGE_TAG: staging
   API_IMAGE_TAG: staging
 
@@ -44,15 +44,26 @@ jobs:
             git clone --branch staging https://github.com/jargonless-website/jargonless-portfolio "${WORKSPACE_ROOT}"
           fi
 
-      - name: Inspect mounted project paths
+      - name: Copy staging configuration
         run: |
           set -euo pipefail
-          echo "Contents of ${HOST_PROJECT_ROOT:-/work}/infra/compose"
-          ls -al "${HOST_PROJECT_ROOT:-/work}/infra/compose" || true
-          echo "Contents of ${HOST_PROJECT_ROOT:-/work}/infra/nginx"
-          ls -al "${HOST_PROJECT_ROOT:-/work}/infra/nginx" || true
-          echo "Contents of ${TUNNEL_VOLUME}"
-          ls -al "${TUNNEL_VOLUME}" || true
+          [ -s "${HOST_ENV_FILE}" ] || { echo "::error::Missing ${HOST_ENV_FILE}"; exit 1; }
+          [ -s "${HOST_TUNNEL_FILE}" ] || { echo "::error::Missing ${HOST_TUNNEL_FILE}"; exit 1; }
+          mkdir -p "${WORKSPACE_ROOT}/infra/compose"
+          cp "${HOST_ENV_FILE}" "${WORKSPACE_ROOT}/infra/compose/.env.production.stg"
+          cp "${HOST_TUNNEL_FILE}" "${WORKSPACE_ROOT}/infra/compose/.env.tunnel.stg"
+          mkdir -p "${HOST_TUNNEL_VOLUME}"
+          mkdir -p "${WORKSPACE_ROOT}/infra/nginx/snippets"
+
+      - name: Inspect workspace
+        run: |
+          set -euo pipefail
+          echo "Workspace compose dir"
+          ls -al "${WORKSPACE_ROOT}/infra/compose" || true
+          echo "Workspace nginx dir"
+          ls -al "${WORKSPACE_ROOT}/infra/nginx" || true
+          echo "Cloudflared staging host dir"
+          ls -al "${HOST_TUNNEL_VOLUME}" || true
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -84,27 +95,22 @@ jobs:
         env:
           COMPOSE_PROJECT_NAME: ${{ env.COMPOSE_PROJECT_NAME }}
           STACK_NAME: ${{ env.STACK_NAME }}
-          APP_ENV_FILE: ${{ env.APP_ENV_FILE }}
-          TUNNEL_ENV_FILE: ${{ env.TUNNEL_ENV_FILE }}
+          APP_ENV_FILE: ${{ env.WORKSPACE_ROOT }}/infra/compose/.env.production.stg
+          TUNNEL_ENV_FILE: ${{ env.WORKSPACE_ROOT }}/infra/compose/.env.tunnel.stg
+          TUNNEL_VOLUME: ${{ env.HOST_TUNNEL_VOLUME }}
           WEB_IMAGE_TAG: ${{ env.WEB_IMAGE_TAG }}
           API_IMAGE_TAG: ${{ env.API_IMAGE_TAG }}
         run: |
           set -euo pipefail
-
-          # Ensure env files exist and token is present
-          [ -s "$APP_ENV_FILE" ]    || { echo "::error::Missing $APP_ENV_FILE"; exit 1; }
-          [ -s "$TUNNEL_ENV_FILE" ] || { echo "::error::Missing $TUNNEL_ENV_FILE"; exit 1; }
-          TUN_TOKEN="$(sed -n 's/^CLOUDFLARE_TUNNEL_TOKEN=//p' "$TUNNEL_ENV_FILE")"
-          [ -n "$TUN_TOKEN" ] || { echo "::error::CLOUDFLARE_TUNNEL_TOKEN empty in $TUNNEL_ENV_FILE"; exit 1; }
-
-          # Export token for the tunnel service
-          export CLOUDFLARE_TUNNEL_TOKEN="$TUN_TOKEN"
-
-          # Bring up only the needed services for staging
+          [ -s "${APP_ENV_FILE}" ] || { echo "::error::Missing ${APP_ENV_FILE}"; exit 1; }
+          [ -s "${TUNNEL_ENV_FILE}" ] || { echo "::error::Missing ${TUNNEL_ENV_FILE}"; exit 1; }
+          token_value="$(sed -n 's/^CLOUDFLARE_TUNNEL_TOKEN=//p' "${TUNNEL_ENV_FILE}")"
+          [ -n "${token_value}" ] || { echo "::error::CLOUDFLARE_TUNNEL_TOKEN empty"; exit 1; }
+          export CLOUDFLARE_TUNNEL_TOKEN="${token_value}"
           docker compose \
             -f infra/compose/docker-compose.yml \
             -f infra/compose/docker-compose.stg.yml \
-            --env-file "$APP_ENV_FILE" \
+            --env-file "${APP_ENV_FILE}" \
             up -d --remove-orphans nginx api jl_tunnel
 
       - name: Show container status

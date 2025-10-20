@@ -13,25 +13,26 @@ jobs:
     if: inputs.confirm == 'deploy-prod' && github.event_name != 'pull_request'
     runs-on: self-hosted
     environment: production
+
     env:
+      REGISTRY: ghcr.io
+      IMAGE_WEB: ghcr.io/jargonless-website/portfolio-web
+      IMAGE_API: ghcr.io/jargonless-website/portfolio-api
+      STACK_NAME: portfolio
+      COMPOSE_PROJECT_NAME: portfolio
       WORKSPACE_ROOT: /work/.deploy/prod
       HOST_PROJECT_ROOT: /work
-      APP_ENV_FILE: /work/infra/compose/.env.production
-      TUNNEL_ENV_FILE: /work/infra/compose/.env.tunnel
-      TUNNEL_VOLUME: /work/cloudflared
-      NGINX_CONFIG_PATH: /work/infra/nginx/nginx.conf
-      NGINX_SNIPPETS_PATH: /work/infra/nginx/snippets
+      HOST_ENV_FILE: /work/infra/compose/.env.production
+      HOST_TUNNEL_FILE: /work/infra/compose/.env.tunnel
+      HOST_TUNNEL_VOLUME: /volume1/docker/portfolio/cloudflared
 
     steps:
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ secrets.GHCR_USER }}
           password: ${{ secrets.GHCR_TOKEN }}
-
-      - name: Mark NAS repo mount as safe
-        run: git config --global --add safe.directory /work
 
       - name: Prepare production workspace
         run: |
@@ -49,78 +50,46 @@ jobs:
             git clone --branch main https://github.com/jargonless-website/jargonless-portfolio "${WORKSPACE_ROOT}"
           fi
 
-      - name: Inspect mounted NAS paths
+      - name: Copy production configuration
         run: |
           set -euo pipefail
-          echo "Contents of ${HOST_PROJECT_ROOT}/infra/compose"
-          ls -al "${HOST_PROJECT_ROOT}/infra/compose" || true
-          echo "Contents of ${HOST_PROJECT_ROOT}/infra/nginx"
-          ls -al "${HOST_PROJECT_ROOT}/infra/nginx" || true
-          echo "Contents of ${TUNNEL_VOLUME}"
-          ls -al "${TUNNEL_VOLUME}" || true
+          [ -s "${HOST_ENV_FILE}" ] || { echo "::error::Missing ${HOST_ENV_FILE}"; exit 1; }
+          [ -s "${HOST_TUNNEL_FILE}" ] || { echo "::error::Missing ${HOST_TUNNEL_FILE}"; exit 1; }
+          cp "${HOST_ENV_FILE}" "${WORKSPACE_ROOT}/infra/compose/.env.production"
+          cp "${HOST_TUNNEL_FILE}" "${WORKSPACE_ROOT}/infra/compose/.env.tunnel"
+          mkdir -p "${HOST_TUNNEL_VOLUME}"
+          mkdir -p "${WORKSPACE_ROOT}/infra/nginx/snippets"
 
-      - name: Verify production env files on NAS
+      - name: Inspect workspace
         run: |
           set -euo pipefail
-          echo "::notice::Using production env file ${APP_ENV_FILE}"
-          echo "::notice::Using production tunnel env file ${TUNNEL_ENV_FILE}"
-          for file in "${APP_ENV_FILE}" "${TUNNEL_ENV_FILE}"; do
-            if [ ! -f "$file" ]; then
-              echo "::error file=$file::Expected production env file '$file' on NAS. Create it or supply secrets."
-              exit 1
-            fi
-          done
-          token_line="$(grep -E '^CLOUDFLARE_TUNNEL_TOKEN=' "${TUNNEL_ENV_FILE}" || true)"
-          if [ -z "$token_line" ] || [ -z "${token_line#CLOUDFLARE_TUNNEL_TOKEN=}" ]; then
-            echo "::error file=${TUNNEL_ENV_FILE}::CLOUDFLARE_TUNNEL_TOKEN missing or empty. Update the NAS file."
-            exit 1
-          fi
-
-      - name: Verify production nginx config on NAS
-        run: |
-          set -euo pipefail
-          if [ ! -f "${NGINX_CONFIG_PATH}" ]; then
-            echo "::error file=${NGINX_CONFIG_PATH}::Missing production nginx configuration file on NAS."
-            exit 1
-          fi
-          if [ ! -d "${NGINX_SNIPPETS_PATH}" ]; then
-            echo "::warning ::Nginx snippets directory '${NGINX_SNIPPETS_PATH}' not found; creating empty directory."
-            mkdir -p "${NGINX_SNIPPETS_PATH}"
-          fi
-
-      - name: Ensure Cloudflared volume directory exists
-        run: |
-          set -euo pipefail
-          echo "::notice::Ensuring Cloudflared volume path ${TUNNEL_VOLUME} exists"
-          mkdir -p "${TUNNEL_VOLUME}"
+          echo "Workspace compose dir"
+          ls -al "${WORKSPACE_ROOT}/infra/compose" || true
+          echo "Workspace nginx dir"
+          ls -al "${WORKSPACE_ROOT}/infra/nginx" || true
+          echo "Cloudflared volume dir"
+          ls -al "${HOST_TUNNEL_VOLUME}" || true
 
       - name: Pull images (latest)
         run: |
-          docker pull ghcr.io/jargonless-website/portfolio-web:latest
-          docker pull ghcr.io/jargonless-website/portfolio-api:latest
+          docker pull ${IMAGE_WEB}:latest
+          docker pull ${IMAGE_API}:latest
 
-      - name: Deploy stack (prod)
+      - name: Deploy stack (production)
         working-directory: ${{ env.WORKSPACE_ROOT }}
         env:
-          COMPOSE_PROJECT_NAME: portfolio
-          NGINX_CONFIG_PATH: ${{ env.NGINX_CONFIG_PATH }}
-          NGINX_SNIPPETS_PATH: ${{ env.NGINX_SNIPPETS_PATH }}
-          APP_ENV_FILE: ${{ env.APP_ENV_FILE }}
-          TUNNEL_ENV_FILE: ${{ env.TUNNEL_ENV_FILE }}
-          TUNNEL_VOLUME: ${{ env.TUNNEL_VOLUME }}
+          COMPOSE_PROJECT_NAME: ${{ env.COMPOSE_PROJECT_NAME }}
+          STACK_NAME: ${{ env.STACK_NAME }}
+          APP_ENV_FILE: ${{ env.WORKSPACE_ROOT }}/infra/compose/.env.production
+          TUNNEL_ENV_FILE: ${{ env.WORKSPACE_ROOT }}/infra/compose/.env.tunnel
+          TUNNEL_VOLUME: ${{ env.HOST_TUNNEL_VOLUME }}
         run: |
           set -euo pipefail
-          echo "Using paths for deployment:"
-          echo "  NGINX_CONFIG_PATH: ${NGINX_CONFIG_PATH}"
-          echo "  NGINX_SNIPPETS_PATH: ${NGINX_SNIPPETS_PATH}"
-          echo "  TUNNEL_VOLUME: ${TUNNEL_VOLUME}"
-          token_value="$(grep -E '^CLOUDFLARE_TUNNEL_TOKEN=' \"${TUNNEL_ENV_FILE}\" | head -n1 | cut -d'=' -f2-)"
-          if [ -z "${token_value}" ]; then
-            echo "::error::Unable to extract CLOUDFLARE_TUNNEL_TOKEN from ${TUNNEL_ENV_FILE}"
-            exit 1
-          fi
+          [ -s "${APP_ENV_FILE}" ] || { echo "::error::Missing ${APP_ENV_FILE}"; exit 1; }
+          [ -s "${TUNNEL_ENV_FILE}" ] || { echo "::error::Missing ${TUNNEL_ENV_FILE}"; exit 1; }
+          token_value="$(sed -n 's/^CLOUDFLARE_TUNNEL_TOKEN=//p' "${TUNNEL_ENV_FILE}")"
+          [ -n "${token_value}" ] || { echo "::error::CLOUDFLARE_TUNNEL_TOKEN empty"; exit 1; }
           export CLOUDFLARE_TUNNEL_TOKEN="${token_value}"
-          trap 'unset CLOUDFLARE_TUNNEL_TOKEN' EXIT
           docker compose \
             -f infra/compose/docker-compose.yml \
             -f infra/compose/docker-compose.prod.yml \

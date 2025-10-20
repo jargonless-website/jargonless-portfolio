@@ -18,7 +18,6 @@ services:
     volumes:
       - ../nginx/nginx.staging.conf:/etc/nginx/nginx.conf:ro
       - ../nginx/snippets:/etc/nginx/snippets:ro
-      - ../../apps/web/dist:/usr/share/nginx/html:ro
     read_only: true
     tmpfs: [/var/cache/nginx, /var/run, /var/log/nginx]
     security_opt: [no-new-privileges:true]
