@@ -11,18 +11,13 @@ env:
   STACK_NAME: portfolio-stg
   COMPOSE_PROJECT_NAME: portfolio-stg
   APP_ENV_FILE: /work/infra/compose/.env.production.stg
-  APP_ENV_FILE_HOST: /volume1/docker/portfolio/infra/compose/.env.production.stg
   TUNNEL_ENV_FILE: /work/infra/compose/.env.tunnel.stg
-  TUNNEL_ENV_FILE_HOST: /volume1/docker/portfolio/infra/compose/.env.tunnel.stg
-  TUNNEL_VOLUME_LOCAL: /work/cloudflared-staging
-  TUNNEL_VOLUME_HOST: /volume1/docker/portfolio/cloudflared-staging
+  TUNNEL_VOLUME: /work/cloudflared-staging
   WEB_IMAGE_TAG: staging
   API_IMAGE_TAG: staging
   WORKSPACE_ROOT: /work/.deploy/staging
   NGINX_CONFIG_PATH: /work/infra/nginx/nginx.staging.conf
-  NGINX_CONFIG_PATH_HOST: /volume1/docker/portfolio/infra/nginx/nginx.staging.conf
   NGINX_SNIPPETS_PATH: /work/infra/nginx/snippets
-  NGINX_SNIPPETS_PATH_HOST: /volume1/docker/portfolio/infra/nginx/snippets
 
 concurrency:
   group: cd-staging-${{ github.ref }}
@@ -64,42 +59,21 @@ jobs:
             fi
           done
 
-      - name: Sync staging assets from NAS
+      - name: Inspect mounted NAS paths
         run: |
           set -euo pipefail
-          missing=0
-          for file in "${APP_ENV_FILE_HOST}" "${TUNNEL_ENV_FILE_HOST}"; do
-            if [ ! -f "$file" ]; then
-              echo "::error file=$file::Expected staging env file on NAS."
-              missing=1
-            fi
-          done
-          if [ ! -f "${NGINX_CONFIG_PATH_HOST}" ]; then
-            echo "::error file=${NGINX_CONFIG_PATH_HOST}::Missing staging nginx config on NAS."
-            missing=1
-          fi
-          if [ "$missing" -ne 0 ]; then
-            exit 1
-          fi
-
-          mkdir -p "$(dirname "${APP_ENV_FILE}")"
-          cp "${APP_ENV_FILE_HOST}" "${APP_ENV_FILE}"
-          mkdir -p "$(dirname "${TUNNEL_ENV_FILE}")"
-          cp "${TUNNEL_ENV_FILE_HOST}" "${TUNNEL_ENV_FILE}"
-
-          mkdir -p "$(dirname "${NGINX_CONFIG_PATH}")"
-          cp "${NGINX_CONFIG_PATH_HOST}" "${NGINX_CONFIG_PATH}"
-
-          mkdir -p "${NGINX_SNIPPETS_PATH}"
-          if [ -d "${NGINX_SNIPPETS_PATH_HOST}" ]; then
-            cp -R "${NGINX_SNIPPETS_PATH_HOST}/." "${NGINX_SNIPPETS_PATH}/"
-          fi
+          echo "Contents of /work/infra/compose"
+          ls -al /work/infra/compose || true
+          echo "Contents of /work/infra/nginx"
+          ls -al /work/infra/nginx || true
+          echo "Contents of /work/cloudflared-staging"
+          ls -al /work/cloudflared-staging || true
 
       - name: Verify staging env files on NAS
         run: |
           set -euo pipefail
-          echo "::notice::Using staging env file ${APP_ENV_FILE} (host ${APP_ENV_FILE_HOST})"
-          echo "::notice::Using staging tunnel env file ${TUNNEL_ENV_FILE} (host ${TUNNEL_ENV_FILE_HOST})"
+          echo "::notice::Using staging env file ${APP_ENV_FILE}"
+          echo "::notice::Using staging tunnel env file ${TUNNEL_ENV_FILE}"
           for file in "${APP_ENV_FILE}" "${TUNNEL_ENV_FILE}"; do
             if [ ! -f "$file" ]; then
               echo "::error file=$file::Expected staging env file '$file' on NAS. Create it or supply secrets."
@@ -127,8 +101,8 @@ jobs:
       - name: Ensure Cloudflared volume directory exists
         run: |
           set -euo pipefail
-          echo "::notice::Ensuring Cloudflared volume path ${TUNNEL_VOLUME_LOCAL} (host ${TUNNEL_VOLUME_HOST}) exists"
-          mkdir -p "${TUNNEL_VOLUME_LOCAL}"
+          echo "::notice::Ensuring Cloudflared volume path ${TUNNEL_VOLUME} exists"
+          mkdir -p "${TUNNEL_VOLUME}"
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -161,22 +135,18 @@ jobs:
           COMPOSE_PROJECT_NAME: ${{ env.COMPOSE_PROJECT_NAME }}
           STACK_NAME: ${{ env.STACK_NAME }}
           APP_ENV_FILE: ${{ env.APP_ENV_FILE }}
-          APP_ENV_FILE_HOST: ${{ env.APP_ENV_FILE_HOST }}
           TUNNEL_ENV_FILE: ${{ env.TUNNEL_ENV_FILE }}
-          TUNNEL_ENV_FILE_HOST: ${{ env.TUNNEL_ENV_FILE_HOST }}
-          TUNNEL_VOLUME: ${{ env.TUNNEL_VOLUME_HOST }}
+          TUNNEL_VOLUME: ${{ env.TUNNEL_VOLUME }}
           WEB_IMAGE_TAG: ${{ env.WEB_IMAGE_TAG }}
           API_IMAGE_TAG: ${{ env.API_IMAGE_TAG }}
-          NGINX_CONFIG_PATH: ${{ env.NGINX_CONFIG_PATH_HOST }}
-          NGINX_SNIPPETS_PATH: ${{ env.NGINX_SNIPPETS_PATH_HOST }}
+          NGINX_CONFIG_PATH: ${{ env.NGINX_CONFIG_PATH }}
+          NGINX_SNIPPETS_PATH: ${{ env.NGINX_SNIPPETS_PATH }}
         run: |
           set -euo pipefail
-          echo "Using host paths:"
-          echo "  APP_ENV_FILE(host): ${APP_ENV_FILE_HOST:-${APP_ENV_FILE}}"
-          echo "  TUNNEL_ENV_FILE(host): ${TUNNEL_ENV_FILE_HOST:-${TUNNEL_ENV_FILE}}"
-          echo "  NGINX_CONFIG_PATH(host): ${NGINX_CONFIG_PATH}"
-          echo "  NGINX_SNIPPETS_PATH(host): ${NGINX_SNIPPETS_PATH}"
-          echo "  TUNNEL_VOLUME(host): ${TUNNEL_VOLUME}"
+          echo "Using paths for deployment:"
+          echo "  NGINX_CONFIG_PATH: ${NGINX_CONFIG_PATH}"
+          echo "  NGINX_SNIPPETS_PATH: ${NGINX_SNIPPETS_PATH}"
+          echo "  TUNNEL_VOLUME: ${TUNNEL_VOLUME}"
           token_value="$(grep -E '^CLOUDFLARE_TUNNEL_TOKEN=' \"${TUNNEL_ENV_FILE}\" | head -n1 | cut -d'=' -f2-)"
           if [ -z "${token_value}" ]; then
             echo "::error::Unable to extract CLOUDFLARE_TUNNEL_TOKEN from ${TUNNEL_ENV_FILE}"
