@@ -10,14 +10,19 @@ env:
   IMAGE_API: ghcr.io/jargonless-website/portfolio-api
   STACK_NAME: portfolio-stg
   COMPOSE_PROJECT_NAME: portfolio-stg
-  APP_ENV_FILE: ./.env.production.stg
-  TUNNEL_ENV_FILE: ./.env.tunnel.stg
-  TUNNEL_VOLUME: /volume1/docker/portfolio/cloudflared-staging
+  APP_ENV_FILE: /work/infra/compose/.env.production.stg
+  APP_ENV_FILE_HOST: /volume1/docker/portfolio/infra/compose/.env.production.stg
+  TUNNEL_ENV_FILE: /work/infra/compose/.env.tunnel.stg
+  TUNNEL_ENV_FILE_HOST: /volume1/docker/portfolio/infra/compose/.env.tunnel.stg
+  TUNNEL_VOLUME_LOCAL: /work/cloudflared-staging
+  TUNNEL_VOLUME_HOST: /volume1/docker/portfolio/cloudflared-staging
   WEB_IMAGE_TAG: staging
   API_IMAGE_TAG: staging
   WORKSPACE_ROOT: /work/.deploy/staging
-  STAGING_ENV_FILE_CONTENT: ${{ secrets.STAGING_ENV_FILE }}
-  STAGING_TUNNEL_TOKEN: ${{ secrets.STAGING_TUNNEL_TOKEN }}
+  NGINX_CONFIG_PATH: /work/infra/nginx/nginx.staging.conf
+  NGINX_CONFIG_PATH_HOST: /volume1/docker/portfolio/infra/nginx/nginx.staging.conf
+  NGINX_SNIPPETS_PATH: /work/infra/nginx/snippets
+  NGINX_SNIPPETS_PATH_HOST: /volume1/docker/portfolio/infra/nginx/snippets
 
 concurrency:
   group: cd-staging-${{ github.ref }}
@@ -59,71 +64,40 @@ jobs:
             fi
           done
 
-      - name: Write staging env files from secrets (optional)
-        if: env.STAGING_ENV_FILE_CONTENT != '' || env.STAGING_TUNNEL_TOKEN != ''
-        working-directory: ${{ env.WORKSPACE_ROOT }}
-        env:
-          STAGING_ENV_FILE_CONTENT: ${{ env.STAGING_ENV_FILE_CONTENT }}
-          STAGING_TUNNEL_TOKEN: ${{ env.STAGING_TUNNEL_TOKEN }}
+      - name: Verify staging env files on NAS
         run: |
           set -euo pipefail
-          mkdir -p infra/compose
-          if [ -n "${STAGING_ENV_FILE_CONTENT:-}" ]; then
-            umask 177
-            printf '%s\n' "${STAGING_ENV_FILE_CONTENT}" > infra/compose/.env.production.stg
-          fi
-          if [ -n "${STAGING_TUNNEL_TOKEN:-}" ]; then
-            umask 177
-            printf 'CLOUDFLARE_TUNNEL_TOKEN=%s\n' "${STAGING_TUNNEL_TOKEN}" > infra/compose/.env.tunnel.stg
-          fi
-
-      - name: Verify staging env files
-        working-directory: ${{ env.WORKSPACE_ROOT }}
-        run: |
-          set -euo pipefail
-          missing=0
-          for file in infra/compose/.env.production.stg infra/compose/.env.tunnel.stg; do
+          echo "::notice::Using staging env file ${APP_ENV_FILE} (host ${APP_ENV_FILE_HOST})"
+          echo "::notice::Using staging tunnel env file ${TUNNEL_ENV_FILE} (host ${TUNNEL_ENV_FILE_HOST})"
+          for file in "${APP_ENV_FILE}" "${TUNNEL_ENV_FILE}"; do
             if [ ! -f "$file" ]; then
-              if [ "$file" = "infra/compose/.env.production.stg" ]; then
-                echo "::error file=$file::Expected staging env file '$file' to exist. Populate it on the NAS under /work/$file or set the GitHub secret STAGING_ENV_FILE."
-              else
-                echo "::error file=$file::Expected staging env file '$file' to exist. Populate it on the NAS under /work/$file or set the GitHub secret STAGING_TUNNEL_TOKEN."
-              fi
-              missing=1
+              echo "::error file=$file::Expected staging env file '$file' on NAS. Create it or supply secrets."
+              exit 1
             fi
           done
-          if [ -f infra/compose/.env.tunnel.stg ]; then
-            token_value="$(grep -E '^CLOUDFLARE_TUNNEL_TOKEN=' infra/compose/.env.tunnel.stg | head -n1 | cut -d'=' -f2-)"
-            if [ -z "${token_value}" ]; then
-              echo "::error file=infra/compose/.env.tunnel.stg::CLOUDFLARE_TUNNEL_TOKEN is empty. Update the file or STAGING_TUNNEL_TOKEN secret with a valid token."
-              missing=1
-            fi
-          fi
-          if [ "$missing" -ne 0 ]; then
+          token_line="$(grep -E '^CLOUDFLARE_TUNNEL_TOKEN=' "${TUNNEL_ENV_FILE}" || true)"
+          if [ -z "$token_line" ] || [ -z "${token_line#CLOUDFLARE_TUNNEL_TOKEN=}" ]; then
+            echo "::error file=${TUNNEL_ENV_FILE}::CLOUDFLARE_TUNNEL_TOKEN missing or empty. Update the NAS file."
             exit 1
           fi
 
-      - name: Verify staging nginx config
-        working-directory: ${{ env.WORKSPACE_ROOT }}
+      - name: Verify staging nginx config on NAS
         run: |
           set -euo pipefail
-          if [ ! -f infra/nginx/nginx.staging.conf ]; then
-            echo "::error file=infra/nginx/nginx.staging.conf::Missing staging nginx configuration file."
+          if [ ! -f "${NGINX_CONFIG_PATH}" ]; then
+            echo "::error file=${NGINX_CONFIG_PATH}::Missing staging nginx configuration file on NAS."
             exit 1
           fi
-          cp infra/nginx/nginx.staging.conf infra/nginx/nginx.conf
-          mkdir -p infra/nginx/snippets
-
-      - name: Show staging nginx workspace files
-        working-directory: ${{ env.WORKSPACE_ROOT }}
-        run: |
-          set -euo pipefail
-          ls -R infra/nginx || true
+          if [ ! -d "${NGINX_SNIPPETS_PATH}" ]; then
+            echo "::warning ::Nginx snippets directory '${NGINX_SNIPPETS_PATH}' not found; creating empty directory."
+            mkdir -p "${NGINX_SNIPPETS_PATH}"
+          fi
 
       - name: Ensure Cloudflared volume directory exists
         run: |
           set -euo pipefail
-          mkdir -p "${TUNNEL_VOLUME}"
+          echo "::notice::Ensuring Cloudflared volume path ${TUNNEL_VOLUME_LOCAL} (host ${TUNNEL_VOLUME_HOST}) exists"
+          mkdir -p "${TUNNEL_VOLUME_LOCAL}"
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -156,18 +130,26 @@ jobs:
           COMPOSE_PROJECT_NAME: ${{ env.COMPOSE_PROJECT_NAME }}
           STACK_NAME: ${{ env.STACK_NAME }}
           APP_ENV_FILE: ${{ env.APP_ENV_FILE }}
+          APP_ENV_FILE_HOST: ${{ env.APP_ENV_FILE_HOST }}
           TUNNEL_ENV_FILE: ${{ env.TUNNEL_ENV_FILE }}
-          TUNNEL_VOLUME: ${{ env.TUNNEL_VOLUME }}
+          TUNNEL_ENV_FILE_HOST: ${{ env.TUNNEL_ENV_FILE_HOST }}
+          TUNNEL_VOLUME: ${{ env.TUNNEL_VOLUME_HOST }}
           WEB_IMAGE_TAG: ${{ env.WEB_IMAGE_TAG }}
           API_IMAGE_TAG: ${{ env.API_IMAGE_TAG }}
-          NGINX_CONFIG_PATH: ${{ env.WORKSPACE_ROOT }}/infra/nginx/nginx.conf
-          NGINX_SNIPPETS_PATH: ${{ env.WORKSPACE_ROOT }}/infra/nginx/snippets
+          NGINX_CONFIG_PATH: ${{ env.NGINX_CONFIG_PATH_HOST }}
+          NGINX_SNIPPETS_PATH: ${{ env.NGINX_SNIPPETS_PATH_HOST }}
         run: |
           set -euo pipefail
+          echo "Using host paths:"
+          echo "  APP_ENV_FILE(host): ${APP_ENV_FILE_HOST:-${APP_ENV_FILE}}"
+          echo "  TUNNEL_ENV_FILE(host): ${TUNNEL_ENV_FILE_HOST:-${TUNNEL_ENV_FILE}}"
+          echo "  NGINX_CONFIG_PATH(host): ${NGINX_CONFIG_PATH}"
+          echo "  NGINX_SNIPPETS_PATH(host): ${NGINX_SNIPPETS_PATH}"
+          echo "  TUNNEL_VOLUME(host): ${TUNNEL_VOLUME}"
           docker compose \
             -f infra/compose/docker-compose.yml \
             -f infra/compose/docker-compose.prod.yml \
-            --env-file infra/compose/.env.production.stg \
+            --env-file "${APP_ENV_FILE}" \
             up -d --remove-orphans nginx api jl_tunnel
 
       - name: Show container status

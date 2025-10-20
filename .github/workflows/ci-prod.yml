@@ -15,9 +15,16 @@ jobs:
     environment: production
     env:
       WORKSPACE_ROOT: /work/.deploy/prod
-      PROD_ENV_FILE_CONTENT: ${{ secrets.PROD_ENV_FILE }}
-      PROD_TUNNEL_TOKEN: ${{ secrets.PROD_TUNNEL_TOKEN }}
-      TUNNEL_VOLUME: /volume1/docker/portfolio/cloudflared
+      APP_ENV_FILE: /work/infra/compose/.env.production
+      APP_ENV_FILE_HOST: /volume1/docker/portfolio/infra/compose/.env.production
+      TUNNEL_ENV_FILE: /work/infra/compose/.env.tunnel
+      TUNNEL_ENV_FILE_HOST: /volume1/docker/portfolio/infra/compose/.env.tunnel
+      TUNNEL_VOLUME_LOCAL: /work/cloudflared
+      TUNNEL_VOLUME_HOST: /volume1/docker/portfolio/cloudflared
+      NGINX_CONFIG_PATH: /work/infra/nginx/nginx.conf
+      NGINX_CONFIG_PATH_HOST: /volume1/docker/portfolio/infra/nginx/nginx.conf
+      NGINX_SNIPPETS_PATH: /work/infra/nginx/snippets
+      NGINX_SNIPPETS_PATH_HOST: /volume1/docker/portfolio/infra/nginx/snippets
 
     # Run every shell step from the repo mount inside the runner container
     defaults:
@@ -59,72 +66,40 @@ jobs:
             fi
           done
 
-      - name: Write production env files from secrets (optional)
-        if: env.PROD_ENV_FILE_CONTENT != '' || env.PROD_TUNNEL_TOKEN != ''
-        working-directory: ${{ env.WORKSPACE_ROOT }}
-        env:
-          PROD_ENV_FILE_CONTENT: ${{ env.PROD_ENV_FILE_CONTENT }}
-          PROD_TUNNEL_TOKEN: ${{ env.PROD_TUNNEL_TOKEN }}
+      - name: Verify production env files on NAS
         run: |
           set -euo pipefail
-          mkdir -p infra/compose
-          if [ -n "${PROD_ENV_FILE_CONTENT:-}" ]; then
-            umask 177
-            printf '%s\n' "${PROD_ENV_FILE_CONTENT}" > infra/compose/.env.production
-          fi
-          if [ -n "${PROD_TUNNEL_TOKEN:-}" ]; then
-            umask 177
-            printf 'CLOUDFLARE_TUNNEL_TOKEN=%s\n' "${PROD_TUNNEL_TOKEN}" > infra/compose/.env.tunnel
-          fi
-
-      - name: Verify production env files
-        working-directory: ${{ env.WORKSPACE_ROOT }}
-        run: |
-          set -euo pipefail
-          missing=0
-          for file in infra/compose/.env.production infra/compose/.env.tunnel; do
+          echo "::notice::Using production env file ${APP_ENV_FILE} (host ${APP_ENV_FILE_HOST})"
+          echo "::notice::Using production tunnel env file ${TUNNEL_ENV_FILE} (host ${TUNNEL_ENV_FILE_HOST})"
+          for file in "${APP_ENV_FILE}" "${TUNNEL_ENV_FILE}"; do
             if [ ! -f "$file" ]; then
-              if [ "$file" = "infra/compose/.env.production" ]; then
-                echo "::error file=$file::Expected production env file '$file' to exist. Populate it on the NAS under /work/$file or set the GitHub secret PROD_ENV_FILE."
-              else
-                echo "::error file=$file::Expected production env file '$file' to exist. Populate it on the NAS under /work/$file or set the GitHub secret PROD_TUNNEL_TOKEN."
-              fi
-              missing=1
+              echo "::error file=$file::Expected production env file '$file' on NAS. Create it or supply secrets."
+              exit 1
             fi
           done
-          if [ -f infra/compose/.env.tunnel ]; then
-            token_value="$(grep -E '^CLOUDFLARE_TUNNEL_TOKEN=' infra/compose/.env.tunnel | head -n1 | cut -d'=' -f2-)"
-            if [ -z "${token_value}" ]; then
-              echo "::error file=infra/compose/.env.tunnel::CLOUDFLARE_TUNNEL_TOKEN is empty. Update the file or PROD_TUNNEL_TOKEN secret with a valid token."
-              missing=1
-            fi
-          fi
-          if [ "$missing" -ne 0 ]; then
+          token_line="$(grep -E '^CLOUDFLARE_TUNNEL_TOKEN=' "${TUNNEL_ENV_FILE}" || true)"
+          if [ -z "$token_line" ] || [ -z "${token_line#CLOUDFLARE_TUNNEL_TOKEN=}" ]; then
+            echo "::error file=${TUNNEL_ENV_FILE}::CLOUDFLARE_TUNNEL_TOKEN missing or empty. Update the NAS file."
             exit 1
           fi
 
-      - name: Verify production nginx config
-        working-directory: ${{ env.WORKSPACE_ROOT }}
+      - name: Verify production nginx config on NAS
         run: |
           set -euo pipefail
-          if [ ! -f infra/nginx/nginx.conf ]; then
-            echo "::error file=infra/nginx/nginx.conf::Missing production nginx configuration file."
+          if [ ! -f "${NGINX_CONFIG_PATH}" ]; then
+            echo "::error file=${NGINX_CONFIG_PATH}::Missing production nginx configuration file on NAS."
             exit 1
           fi
-          mkdir -p infra/nginx/snippets
-
-      - name: Show production nginx workspace files
-        working-directory: ${{ env.WORKSPACE_ROOT }}
-        run: |
-          set -euo pipefail
-          ls -R infra/nginx || true
+          if [ ! -d "${NGINX_SNIPPETS_PATH}" ]; then
+            echo "::warning ::Nginx snippets directory '${NGINX_SNIPPETS_PATH}' not found; creating empty directory."
+            mkdir -p "${NGINX_SNIPPETS_PATH}"
+          fi
 
       - name: Ensure Cloudflared volume directory exists
-        env:
-          TUNNEL_VOLUME: ${{ env.TUNNEL_VOLUME || '/volume1/docker/portfolio/cloudflared' }}
         run: |
           set -euo pipefail
-          mkdir -p "${TUNNEL_VOLUME}"
+          echo "::notice::Ensuring Cloudflared volume path ${TUNNEL_VOLUME_LOCAL} (host ${TUNNEL_VOLUME_HOST}) exists"
+          mkdir -p "${TUNNEL_VOLUME_LOCAL}"
 
       - name: Pull images (latest)
         run: |
@@ -135,14 +110,25 @@ jobs:
         working-directory: ${{ env.WORKSPACE_ROOT }}
         env:
           COMPOSE_PROJECT_NAME: portfolio
-          NGINX_CONFIG_PATH: ${{ env.WORKSPACE_ROOT }}/infra/nginx/nginx.conf
-          NGINX_SNIPPETS_PATH: ${{ env.WORKSPACE_ROOT }}/infra/nginx/snippets
+          NGINX_CONFIG_PATH: ${{ env.NGINX_CONFIG_PATH_HOST }}
+          NGINX_SNIPPETS_PATH: ${{ env.NGINX_SNIPPETS_PATH_HOST }}
+          APP_ENV_FILE: ${{ env.APP_ENV_FILE }}
+          APP_ENV_FILE_HOST: ${{ env.APP_ENV_FILE_HOST }}
+          TUNNEL_ENV_FILE: ${{ env.TUNNEL_ENV_FILE }}
+          TUNNEL_ENV_FILE_HOST: ${{ env.TUNNEL_ENV_FILE_HOST }}
+          TUNNEL_VOLUME: ${{ env.TUNNEL_VOLUME_HOST }}
         run: |
           set -euo pipefail
+          echo "Using host paths:"
+          echo "  APP_ENV_FILE(host): ${APP_ENV_FILE_HOST:-${APP_ENV_FILE}}"
+          echo "  TUNNEL_ENV_FILE(host): ${TUNNEL_ENV_FILE_HOST:-${TUNNEL_ENV_FILE}}"
+          echo "  NGINX_CONFIG_PATH(host): ${NGINX_CONFIG_PATH}"
+          echo "  NGINX_SNIPPETS_PATH(host): ${NGINX_SNIPPETS_PATH}"
+          echo "  TUNNEL_VOLUME(host): ${TUNNEL_VOLUME}"
           docker compose \
             -f infra/compose/docker-compose.yml \
             -f infra/compose/docker-compose.prod.yml \
-            --env-file infra/compose/.env.production \
+            --env-file "${APP_ENV_FILE}" \
             up -d --remove-orphans nginx api jl_tunnel
 
       - name: Show container status
