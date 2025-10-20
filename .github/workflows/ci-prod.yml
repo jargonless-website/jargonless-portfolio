@@ -113,6 +113,12 @@ jobs:
           fi
           mkdir -p infra/nginx/snippets
 
+      - name: Show production nginx workspace files
+        working-directory: ${{ env.WORKSPACE_ROOT }}
+        run: |
+          set -euo pipefail
+          ls -R infra/nginx || true
+
       - name: Ensure Cloudflared volume directory exists
         env:
           TUNNEL_VOLUME: ${{ env.TUNNEL_VOLUME || '/volume1/docker/portfolio/cloudflared' }}
@@ -129,6 +135,8 @@ jobs:
         working-directory: ${{ env.WORKSPACE_ROOT }}
         env:
           COMPOSE_PROJECT_NAME: portfolio
+          NGINX_CONFIG_PATH: ${{ env.WORKSPACE_ROOT }}/infra/nginx/nginx.conf
+          NGINX_SNIPPETS_PATH: ${{ env.WORKSPACE_ROOT }}/infra/nginx/snippets
         run: |
           set -euo pipefail
           docker compose \

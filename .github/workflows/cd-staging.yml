@@ -114,6 +114,12 @@ jobs:
           cp infra/nginx/nginx.staging.conf infra/nginx/nginx.conf
           mkdir -p infra/nginx/snippets
 
+      - name: Show staging nginx workspace files
+        working-directory: ${{ env.WORKSPACE_ROOT }}
+        run: |
+          set -euo pipefail
+          ls -R infra/nginx || true
+
       - name: Ensure Cloudflared volume directory exists
         run: |
           set -euo pipefail
@@ -154,8 +160,8 @@ jobs:
           TUNNEL_VOLUME: ${{ env.TUNNEL_VOLUME }}
           WEB_IMAGE_TAG: ${{ env.WEB_IMAGE_TAG }}
           API_IMAGE_TAG: ${{ env.API_IMAGE_TAG }}
-          NGINX_CONFIG_PATH: ./../nginx/nginx.conf
-          NGINX_SNIPPETS_PATH: ./../nginx/snippets
+          NGINX_CONFIG_PATH: ${{ env.WORKSPACE_ROOT }}/infra/nginx/nginx.conf
+          NGINX_SNIPPETS_PATH: ${{ env.WORKSPACE_ROOT }}/infra/nginx/snippets
         run: |
           set -euo pipefail
           docker compose \
