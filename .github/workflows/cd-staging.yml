@@ -26,6 +26,9 @@ jobs:
     environment: staging
 
     steps:
+      - name: Mark NAS repo mount as safe
+        run: git config --global --add safe.directory /work
+
       - name: Sync repo on NAS (/work)
         working-directory: /work
         run: |

@@ -27,6 +27,9 @@ jobs:
           username: ${{ secrets.GHCR_USER }}
           password: ${{ secrets.GHCR_TOKEN }}
 
+      - name: Mark NAS repo mount as safe
+        run: git config --global --add safe.directory /work
+
       - name: Update repo on NAS
         run: |
           set -e
