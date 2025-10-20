@@ -54,6 +54,21 @@ jobs:
             fi
           done
 
+      - name: Verify staging env files
+        working-directory: ${{ env.WORKSPACE_ROOT }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for file in infra/compose/.env.production.stg infra/compose/.env.tunnel.stg; do
+            if [ ! -f "$file" ]; then
+              echo "::error file=$file::Expected staging env file '$file' to exist. Populate it on the NAS under /work/$file or store it via secrets."
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:

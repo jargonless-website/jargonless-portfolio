@@ -53,6 +53,21 @@ jobs:
             fi
           done
 
+      - name: Verify production env files
+        working-directory: ${{ env.WORKSPACE_ROOT }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for file in infra/compose/.env.production infra/compose/.env.tunnel; do
+            if [ ! -f "$file" ]; then
+              echo "::error file=$file::Expected production env file '$file' to exist. Populate it on the NAS under /work/$file or store it via secrets."
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
       - name: Pull images (latest)
         run: |
           docker pull ghcr.io/jargonless-website/portfolio-web:latest
