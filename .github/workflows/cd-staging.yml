@@ -37,7 +37,9 @@ jobs:
             git clone https://github.com/jargonless-website/jargonless-portfolio .
           fi
           git fetch origin staging
-          git checkout -B staging origin/staging
+          git reset --hard
+          git clean -fd
+          git checkout staging || git checkout -B staging origin/staging
           git reset --hard origin/staging
           git clean -fd
 

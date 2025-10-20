@@ -37,7 +37,11 @@ jobs:
             git clone https://github.com/jargonless-website/jargonless-portfolio .
           fi
           git fetch origin main
+          git reset --hard
+          git clean -fd
+          git checkout main || git checkout -B main origin/main
           git reset --hard origin/main
+          git clean -fd
 
       - name: Pull images (latest)
         run: |
