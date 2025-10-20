@@ -1,0 +1,66 @@
+# Staging overlay: harden containers and mount Nginx from repo
+x-common-logging: &common_logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "5" }
+
+x-common-resources: &common_resources
+  deploy:
+    resources:
+      limits: { memory: "512M" }
+      reservations: { memory: "128M" }
+
+services:
+  nginx:
+    container_name: "${STACK_NAME:-portfolio-stg}-nginx-1"
+    restart: unless-stopped
+    environment: [NODE_ENV=production]
+    ports: []                                   # no host ports; Cloudflare only
+    volumes:
+      - ../nginx/nginx.staging.conf:/etc/nginx/nginx.conf:ro
+      - ../nginx/snippets:/etc/nginx/snippets:ro
+      - ../../apps/web/dist:/usr/share/nginx/html:ro
+    read_only: true
+    tmpfs: [/var/cache/nginx, /var/run, /var/log/nginx]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [NET_ADMIN, SYS_ADMIN]
+    healthcheck:
+      test: ["CMD-SHELL","wget -qO- http://localhost/ || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+    logging: *common_logging
+    <<: *common_resources
+
+  api:
+    container_name: "${STACK_NAME:-portfolio-stg}-api-1"
+    restart: unless-stopped
+    # ENV and CORS_ORIGINS come from the --env-file passed by the workflow
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [SYS_ADMIN, NET_ADMIN]
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >
+          python -c "import sys,urllib.request,socket;
+          socket.setdefaulttimeout(3);
+          sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health').getcode()==200 else 1)"
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    logging: *common_logging
+    <<: *common_resources
+
+  jl_tunnel:
+    container_name: "${STACK_NAME:-portfolio-stg}-jl_tunnel-1"
+    image: cloudflare/cloudflared:latest
+    restart: always
+    # token comes from exported env at deploy time; no env_file needed
+    command: ["tunnel", "run", "--token", "${CLOUDFLARE_TUNNEL_TOKEN}"]
+    volumes:
+      - ${TUNNEL_VOLUME:-/volume1/docker/portfolio/cloudflared}:/etc/cloudflared
+    logging: *common_logging
+    <<: *common_resources
