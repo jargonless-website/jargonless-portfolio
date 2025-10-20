@@ -1,0 +1,46 @@
+name: CI Core
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  compose-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v3
+
+      - name: Prepare dummy env files for Compose validation
+        run: |
+          mkdir -p infra/compose
+          cat > infra/compose/.env.tunnel <<'EOF'
+          CLOUDFLARE_TUNNEL_TOKEN=dummy
+          DOMAIN=jargonless.ai
+          HOST_HTTP_PORT=8080
+          HOST_API_PORT=8000
+          NODE_ENV=production
+          PORTFOLIO_ENV=production
+          EOF
+
+          cat > infra/compose/.env.production <<'EOF'
+          ENV=production
+          CORS_ORIGINS=https://jargonless.ai
+          EOF
+
+          cat > infra/compose/.env.runner <<'EOF'
+          GITHUB_ACCESS_TOKEN=dummy
+          REPO_URL=https://github.com/jargonless-website/jargonless-portfolio
+          RUNNER_NAME=dummy-runner
+          RUNNER_LABELS=ci
+          RUNNER_SCOPE=repo
+          EOF
+
+      - name: Validate Compose
+        run: |
+          docker compose -f infra/compose/docker-compose.yml config -q
+          docker compose -f infra/compose/docker-compose.prod.yml config -q || true
+          docker compose -f infra/compose/docker-compose.runner.yml config -q || true
