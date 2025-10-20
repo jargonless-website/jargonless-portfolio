@@ -30,13 +30,17 @@ jobs:
         working-directory: ${{ env.WORKSPACE_ROOT }}
         run: |
           set -euo pipefail
-          if [ ! -d .git ]; then
-            git clone https://github.com/jargonless-website/jargonless-portfolio .
+
+          if [ -d .git ]; then
+            echo "Repo exists → refresh staging branch"
+            git fetch --all --prune
+            git checkout staging || git checkout -b staging
+            git reset --hard origin/staging
+            git clean -fdx
+          else
+            echo "Fresh clone of staging branch"
+            git clone --branch staging https://github.com/jargonless-website/jargonless-portfolio .
           fi
-          git fetch --prune origin
-          git checkout -B staging origin/staging
-          git reset --hard origin/staging
-          git submodule update --init --recursive || true
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
