@@ -18,6 +18,8 @@ env:
   WORKSPACE_ROOT: /work/.deploy/staging
   STAGING_ENV_FILE_CONTENT: ${{ secrets.STAGING_ENV_FILE }}
   STAGING_TUNNEL_TOKEN: ${{ secrets.STAGING_TUNNEL_TOKEN }}
+  NGINX_CONFIG_PATH: ./../nginx/nginx.staging.conf
+  NGINX_SNIPPETS_PATH: ./../nginx/snippets
 
 concurrency:
   group: cd-staging-${{ github.ref }}
@@ -103,6 +105,16 @@ jobs:
             exit 1
           fi
 
+      - name: Verify staging nginx config
+        working-directory: ${{ env.WORKSPACE_ROOT }}
+        run: |
+          set -euo pipefail
+          if [ ! -f infra/nginx/nginx.staging.conf ]; then
+            echo "::error file=infra/nginx/nginx.staging.conf::Missing staging nginx configuration file."
+            exit 1
+          fi
+          mkdir -p infra/nginx/snippets
+
       - name: Ensure Cloudflared volume directory exists
         run: |
           set -euo pipefail
@@ -143,6 +155,8 @@ jobs:
           TUNNEL_VOLUME: ${{ env.TUNNEL_VOLUME }}
           WEB_IMAGE_TAG: ${{ env.WEB_IMAGE_TAG }}
           API_IMAGE_TAG: ${{ env.API_IMAGE_TAG }}
+          NGINX_CONFIG_PATH: ${{ env.NGINX_CONFIG_PATH }}
+          NGINX_SNIPPETS_PATH: ${{ env.NGINX_SNIPPETS_PATH }}
         run: |
           set -euo pipefail
           docker compose \

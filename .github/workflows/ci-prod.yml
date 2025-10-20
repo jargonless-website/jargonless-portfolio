@@ -18,6 +18,8 @@ jobs:
       PROD_ENV_FILE_CONTENT: ${{ secrets.PROD_ENV_FILE }}
       PROD_TUNNEL_TOKEN: ${{ secrets.PROD_TUNNEL_TOKEN }}
       TUNNEL_VOLUME: /volume1/docker/portfolio/cloudflared
+      NGINX_CONFIG_PATH: ./../nginx/nginx.conf
+      NGINX_SNIPPETS_PATH: ./../nginx/snippets
 
     # Run every shell step from the repo mount inside the runner container
     defaults:
@@ -103,6 +105,16 @@ jobs:
             exit 1
           fi
 
+      - name: Verify production nginx config
+        working-directory: ${{ env.WORKSPACE_ROOT }}
+        run: |
+          set -euo pipefail
+          if [ ! -f infra/nginx/nginx.conf ]; then
+            echo "::error file=infra/nginx/nginx.conf::Missing production nginx configuration file."
+            exit 1
+          fi
+          mkdir -p infra/nginx/snippets
+
       - name: Ensure Cloudflared volume directory exists
         env:
           TUNNEL_VOLUME: ${{ env.TUNNEL_VOLUME || '/volume1/docker/portfolio/cloudflared' }}
@@ -119,6 +131,8 @@ jobs:
         working-directory: ${{ env.WORKSPACE_ROOT }}
         env:
           COMPOSE_PROJECT_NAME: portfolio
+          NGINX_CONFIG_PATH: ${{ env.NGINX_CONFIG_PATH }}
+          NGINX_SNIPPETS_PATH: ${{ env.NGINX_SNIPPETS_PATH }}
         run: |
           set -euo pipefail
           docker compose \
