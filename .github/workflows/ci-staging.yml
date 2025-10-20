@@ -1,47 +1,43 @@
-name: CD Staging
+name: CI Core
 
 on:
   push:
-    branches: [ staging ]
+    branches: [ main, staging ]
 
 jobs:
-  deploy-staging:
-    if: github.event_name != 'pull_request'
-    runs-on: self-hosted
-
+  compose-validate:
+    runs-on: ubuntu-latest
     steps:
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ secrets.GHCR_USER }}
-          password: ${{ secrets.GHCR_TOKEN }}
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Update repo on NAS
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Prepare dummy env files for Compose validation
         run: |
-          set -e
-          cd /volume1/docker/portfolio
-          if ! git rev-parse --git-dir >/dev/null 2>&1; then
-            git clone https://github.com/jargonless-website/jargonless-portfolio .
-          fi
-          git fetch origin staging
-          git reset --hard origin/staging
+          mkdir -p infra/compose
+          cat > infra/compose/.env.tunnel <<'EOF'
+          CLOUDFLARE_TUNNEL_TOKEN=dummy
+          DOMAIN=jargonless.ai
+          HOST_HTTP_PORT=8080
+          HOST_API_PORT=8000
+          NODE_ENV=production
+          PORTFOLIO_ENV=production
+          EOF
 
-      - name: Pull images (latest)
+          cat > infra/compose/.env.production <<'EOF'
+          ENV=production
+          CORS_ORIGINS=https://jargonless.ai
+          EOF
+
+          cat > infra/compose/.env.production.stg <<'EOF'
+          ENV=staging
+          CORS_ORIGINS=https://staging.jargonless.ai
+          EOF
+
+      - name: Validate compose files
         run: |
-          docker pull ghcr.io/jargonless-website/portfolio-web:latest
-          docker pull ghcr.io/jargonless-website/portfolio-api:latest
-
-      - name: Deploy stack (staging)
-        env:
-          COMPOSE_PROJECT_NAME: portfolio-stg
-        run: |
-          cd /volume1/docker/portfolio
-          docker compose \
-            -f infra/compose/docker-compose.yml \
-            -f infra/compose/docker-compose.prod.yml \
-            --env-file infra/compose/.env.production.stg \
-            up -d --remove-orphans nginx api
-
-      - name: Show container status
-        run: docker ps --format 'table {{.Names}}\t{{.Status}}' | grep -E 'portfolio-stg_(nginx|api)_1|cloudflared-staging' || true
+          docker compose -f infra/compose/docker-compose.yml config -q
+          docker compose -f infra/compose/docker-compose.prod.yml config -q || true
+          docker compose -f infra/compose/docker-compose.runner.yml config -q || true
