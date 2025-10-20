@@ -11,7 +11,7 @@ on:
 jobs:
   deploy-prod:
     if: inputs.confirm == 'deploy-prod' && github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     environment: production
 
     steps:
