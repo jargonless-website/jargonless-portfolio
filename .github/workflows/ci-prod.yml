@@ -15,16 +15,12 @@ jobs:
     environment: production
     env:
       WORKSPACE_ROOT: /work/.deploy/prod
+      HOST_PROJECT_ROOT: /work
       APP_ENV_FILE: /work/infra/compose/.env.production
       TUNNEL_ENV_FILE: /work/infra/compose/.env.tunnel
       TUNNEL_VOLUME: /work/cloudflared
       NGINX_CONFIG_PATH: /work/infra/nginx/nginx.conf
       NGINX_SNIPPETS_PATH: /work/infra/nginx/snippets
-
-    # Run every shell step from the repo mount inside the runner container
-    defaults:
-      run:
-        working-directory: /work
 
     steps:
       - name: Log in to GHCR
@@ -37,39 +33,31 @@ jobs:
       - name: Mark NAS repo mount as safe
         run: git config --global --add safe.directory /work
 
-      - name: Prepare clean workspace snapshot
+      - name: Prepare production workspace
         run: |
-          set -e
-          if [ ! -d .git ]; then
-            git clone https://github.com/jargonless-website/jargonless-portfolio .
-          fi
-          git fetch --prune origin
-          rm -rf "${WORKSPACE_ROOT}"
+          set -euo pipefail
           mkdir -p "${WORKSPACE_ROOT}"
-          git archive origin/main | tar -x -C "${WORKSPACE_ROOT}"
-          for secret in \
-            infra/compose/.env.production \
-            infra/compose/.env.tunnel \
-            infra/compose/.env.runner
-          do
-            if [ -f "/work/${secret}" ]; then
-              echo "::notice::Syncing /work/${secret} into workspace."
-              mkdir -p "${WORKSPACE_ROOT}/$(dirname "${secret}")"
-              cp "/work/${secret}" "${WORKSPACE_ROOT}/${secret}"
-            else
-              echo "::notice::No local copy at /work/${secret}; relying on secrets if provided."
-            fi
-          done
+          if [ -d "${WORKSPACE_ROOT}/.git" ]; then
+            echo "Repo exists → refresh main branch"
+            git -C "${WORKSPACE_ROOT}" fetch --all --prune
+            git -C "${WORKSPACE_ROOT}" checkout main || git -C "${WORKSPACE_ROOT}" checkout -b main
+            git -C "${WORKSPACE_ROOT}" reset --hard origin/main
+            git -C "${WORKSPACE_ROOT}" clean -fdx
+          else
+            echo "Fresh clone of main branch into ${WORKSPACE_ROOT}"
+            rm -rf "${WORKSPACE_ROOT:?}/"*
+            git clone --branch main https://github.com/jargonless-website/jargonless-portfolio "${WORKSPACE_ROOT}"
+          fi
 
       - name: Inspect mounted NAS paths
         run: |
           set -euo pipefail
-          echo "Contents of /work/infra/compose"
-          ls -al /work/infra/compose || true
-          echo "Contents of /work/infra/nginx"
-          ls -al /work/infra/nginx || true
-          echo "Contents of /work/cloudflared"
-          ls -al /work/cloudflared || true
+          echo "Contents of ${HOST_PROJECT_ROOT}/infra/compose"
+          ls -al "${HOST_PROJECT_ROOT}/infra/compose" || true
+          echo "Contents of ${HOST_PROJECT_ROOT}/infra/nginx"
+          ls -al "${HOST_PROJECT_ROOT}/infra/nginx" || true
+          echo "Contents of ${TUNNEL_VOLUME}"
+          ls -al "${TUNNEL_VOLUME}" || true
 
       - name: Verify production env files on NAS
         run: |

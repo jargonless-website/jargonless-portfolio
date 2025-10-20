@@ -14,9 +14,11 @@ env:
   IMAGE_API: ghcr.io/jargonless-website/portfolio-api
   STACK_NAME: portfolio-stg
   COMPOSE_PROJECT_NAME: portfolio-stg
-  WORKSPACE_ROOT: /volume1/docker/portfolio
-  APP_ENV_FILE: /volume1/docker/portfolio/infra/compose/.env.production.stg
-  TUNNEL_ENV_FILE: /volume1/docker/portfolio/infra/compose/.env.tunnel.stg
+  WORKSPACE_ROOT: /work/.deploy/staging
+  HOST_PROJECT_ROOT: /work
+  APP_ENV_FILE: /work/infra/compose/.env.production.stg
+  TUNNEL_ENV_FILE: /work/infra/compose/.env.tunnel.stg
+  TUNNEL_VOLUME: /work/cloudflared-staging
   WEB_IMAGE_TAG: staging
   API_IMAGE_TAG: staging
 
@@ -26,21 +28,31 @@ jobs:
     environment: staging
 
     steps:
-      - name: Sync repo to staging
-        working-directory: ${{ env.WORKSPACE_ROOT }}
+      - name: Prepare staging workspace
         run: |
           set -euo pipefail
-
-          if [ -d .git ]; then
+          mkdir -p "${WORKSPACE_ROOT}"
+          if [ -d "${WORKSPACE_ROOT}/.git" ]; then
             echo "Repo exists → refresh staging branch"
-            git fetch --all --prune
-            git checkout staging || git checkout -b staging
-            git reset --hard origin/staging
-            git clean -fdx
+            git -C "${WORKSPACE_ROOT}" fetch --all --prune
+            git -C "${WORKSPACE_ROOT}" checkout staging || git -C "${WORKSPACE_ROOT}" checkout -b staging
+            git -C "${WORKSPACE_ROOT}" reset --hard origin/staging
+            git -C "${WORKSPACE_ROOT}" clean -fdx
           else
-            echo "Fresh clone of staging branch"
-            git clone --branch staging https://github.com/jargonless-website/jargonless-portfolio .
+            echo "Fresh clone of staging branch into ${WORKSPACE_ROOT}"
+            rm -rf "${WORKSPACE_ROOT:?}/"*
+            git clone --branch staging https://github.com/jargonless-website/jargonless-portfolio "${WORKSPACE_ROOT}"
           fi
+
+      - name: Inspect mounted project paths
+        run: |
+          set -euo pipefail
+          echo "Contents of ${HOST_PROJECT_ROOT:-/work}/infra/compose"
+          ls -al "${HOST_PROJECT_ROOT:-/work}/infra/compose" || true
+          echo "Contents of ${HOST_PROJECT_ROOT:-/work}/infra/nginx"
+          ls -al "${HOST_PROJECT_ROOT:-/work}/infra/nginx" || true
+          echo "Contents of ${TUNNEL_VOLUME}"
+          ls -al "${TUNNEL_VOLUME}" || true
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
