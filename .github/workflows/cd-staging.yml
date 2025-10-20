@@ -79,6 +79,15 @@ jobs:
           docker push ${IMAGE_API}:${GITHUB_SHA}
           docker push ${IMAGE_API}:${API_IMAGE_TAG}
 
+      - name: Debug env file existence
+        run: |
+          echo "Listing in /volume1/docker/portfolio/infra/compose:"
+          ls -al /volume1/docker/portfolio/infra/compose
+          echo "Listing in /volume1/docker/portfolio/.deploy/staging/infra/compose:"
+          ls -al /volume1/docker/portfolio/.deploy/staging/infra/compose
+          echo "Trying to read the env file:"
+          cat /volume1/docker/portfolio/infra/compose/.env.production.stg || echo "File missing"
+
       - name: Deploy stack (staging)
         working-directory: ${{ env.WORKSPACE_ROOT }}
         env:
