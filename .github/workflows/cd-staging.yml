@@ -16,6 +16,8 @@ env:
   WEB_IMAGE_TAG: staging
   API_IMAGE_TAG: staging
   WORKSPACE_ROOT: /work/.deploy/staging
+  STAGING_ENV_FILE_CONTENT: ${{ secrets.STAGING_ENV_FILE }}
+  STAGING_TUNNEL_TOKEN: ${{ secrets.STAGING_TUNNEL_TOKEN }}
 
 concurrency:
   group: cd-staging-${{ github.ref }}
@@ -49,10 +51,31 @@ jobs:
             infra/compose/.env.runner
           do
             if [ -f "/work/${secret}" ]; then
+              echo "::notice::Syncing /work/${secret} into workspace."
               mkdir -p "${WORKSPACE_ROOT}/$(dirname "${secret}")"
               cp "/work/${secret}" "${WORKSPACE_ROOT}/${secret}"
+            else
+              echo "::notice::No local copy at /work/${secret}; relying on secrets if provided."
             fi
           done
+
+      - name: Write staging env files from secrets (optional)
+        if: env.STAGING_ENV_FILE_CONTENT != '' || env.STAGING_TUNNEL_TOKEN != ''
+        working-directory: ${{ env.WORKSPACE_ROOT }}
+        env:
+          STAGING_ENV_FILE_CONTENT: ${{ env.STAGING_ENV_FILE_CONTENT }}
+          STAGING_TUNNEL_TOKEN: ${{ env.STAGING_TUNNEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p infra/compose
+          if [ -n "${STAGING_ENV_FILE_CONTENT:-}" ]; then
+            umask 177
+            printf '%s\n' "${STAGING_ENV_FILE_CONTENT}" > infra/compose/.env.production.stg
+          fi
+          if [ -n "${STAGING_TUNNEL_TOKEN:-}" ]; then
+            umask 177
+            printf 'CLOUDFLARE_TUNNEL_TOKEN=%s\n' "${STAGING_TUNNEL_TOKEN}" > infra/compose/.env.tunnel.stg
+          fi
 
       - name: Verify staging env files
         working-directory: ${{ env.WORKSPACE_ROOT }}
@@ -61,7 +84,11 @@ jobs:
           missing=0
           for file in infra/compose/.env.production.stg infra/compose/.env.tunnel.stg; do
             if [ ! -f "$file" ]; then
-              echo "::error file=$file::Expected staging env file '$file' to exist. Populate it on the NAS under /work/$file or store it via secrets."
+              if [ "$file" = "infra/compose/.env.production.stg" ]; then
+                echo "::error file=$file::Expected staging env file '$file' to exist. Populate it on the NAS under /work/$file or set the GitHub secret STAGING_ENV_FILE."
+              else
+                echo "::error file=$file::Expected staging env file '$file' to exist. Populate it on the NAS under /work/$file or set the GitHub secret STAGING_TUNNEL_TOKEN."
+              fi
               missing=1
             fi
           done

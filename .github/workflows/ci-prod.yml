@@ -15,6 +15,8 @@ jobs:
     environment: production
     env:
       WORKSPACE_ROOT: /work/.deploy/prod
+      PROD_ENV_FILE_CONTENT: ${{ secrets.PROD_ENV_FILE }}
+      PROD_TUNNEL_TOKEN: ${{ secrets.PROD_TUNNEL_TOKEN }}
 
     # Run every shell step from the repo mount inside the runner container
     defaults:
@@ -48,10 +50,31 @@ jobs:
             infra/compose/.env.runner
           do
             if [ -f "/work/${secret}" ]; then
+              echo "::notice::Syncing /work/${secret} into workspace."
               mkdir -p "${WORKSPACE_ROOT}/$(dirname "${secret}")"
               cp "/work/${secret}" "${WORKSPACE_ROOT}/${secret}"
+            else
+              echo "::notice::No local copy at /work/${secret}; relying on secrets if provided."
             fi
           done
+
+      - name: Write production env files from secrets (optional)
+        if: env.PROD_ENV_FILE_CONTENT != '' || env.PROD_TUNNEL_TOKEN != ''
+        working-directory: ${{ env.WORKSPACE_ROOT }}
+        env:
+          PROD_ENV_FILE_CONTENT: ${{ env.PROD_ENV_FILE_CONTENT }}
+          PROD_TUNNEL_TOKEN: ${{ env.PROD_TUNNEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p infra/compose
+          if [ -n "${PROD_ENV_FILE_CONTENT:-}" ]; then
+            umask 177
+            printf '%s\n' "${PROD_ENV_FILE_CONTENT}" > infra/compose/.env.production
+          fi
+          if [ -n "${PROD_TUNNEL_TOKEN:-}" ]; then
+            umask 177
+            printf 'CLOUDFLARE_TUNNEL_TOKEN=%s\n' "${PROD_TUNNEL_TOKEN}" > infra/compose/.env.tunnel
+          fi
 
       - name: Verify production env files
         working-directory: ${{ env.WORKSPACE_ROOT }}
@@ -60,7 +83,11 @@ jobs:
           missing=0
           for file in infra/compose/.env.production infra/compose/.env.tunnel; do
             if [ ! -f "$file" ]; then
-              echo "::error file=$file::Expected production env file '$file' to exist. Populate it on the NAS under /work/$file or store it via secrets."
+              if [ "$file" = "infra/compose/.env.production" ]; then
+                echo "::error file=$file::Expected production env file '$file' to exist. Populate it on the NAS under /work/$file or set the GitHub secret PROD_ENV_FILE."
+              else
+                echo "::error file=$file::Expected production env file '$file' to exist. Populate it on the NAS under /work/$file or set the GitHub secret PROD_TUNNEL_TOKEN."
+              fi
               missing=1
             fi
           done
