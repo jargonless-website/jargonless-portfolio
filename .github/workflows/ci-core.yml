@@ -35,9 +35,16 @@ jobs:
           ENV=staging
           CORS_ORIGINS=https://staging.jargonless.ai
           EOF
+          cat > infra/compose/.env.tunnel.stg <<'EOF'
+          CLOUDFLARE_TUNNEL_TOKEN=dummy
+          EOF
+          cat > infra/compose/.env.runner <<'EOF'
+          RUNNER_NAME=dummy
+          RUNNER_TOKEN=dummy
+          EOF
 
       - name: Validate compose files
         run: |
           docker compose -f infra/compose/docker-compose.yml config -q
-          docker compose -f infra/compose/docker-compose.prod.yml config -q || true
-          docker compose -f infra/compose/docker-compose.runner.yml config -q || true
+          docker compose -f infra/compose/docker-compose.yml -f infra/compose/docker-compose.prod.yml config -q
+          docker compose -f infra/compose/docker-compose.yml -f infra/compose/docker-compose.runner.yml config -q

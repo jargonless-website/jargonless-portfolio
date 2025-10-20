@@ -10,7 +10,7 @@ x-common-resources: &common_resources
 
 services:
   nginx:
-    container_name: portfolio-nginx-1            # <— add this
+    container_name: "${STACK_NAME:-portfolio}-nginx-1"
     restart: unless-stopped
     ports: []                                     # no host port in prod
     environment: [NODE_ENV=production]
@@ -31,10 +31,10 @@ services:
     <<: *common_resources
 
   api:
-    container_name: portfolio-api-1              # <— add this
+    container_name: "${STACK_NAME:-portfolio}-api-1"
     restart: unless-stopped
     env_file:
-      - ./.env.production                         # <— keep it relative to THIS file
+      - ${APP_ENV_FILE:-./.env.production}
     environment:
       - ENV=production
       - CORS_ORIGINS=https://jargonless.ai
@@ -57,12 +57,12 @@ services:
     logging: *common_logging
     <<: *common_resources
 
-  jl_tunnel:                                      # <— add this whole service
-    container_name: portfolio-jl_tunnel-1
+  jl_tunnel:
+    container_name: "${STACK_NAME:-portfolio}-jl_tunnel-1"
     image: cloudflare/cloudflared:latest
     restart: always
     command: ["tunnel","--config","/etc/cloudflared/config.yml","run","--token","${CLOUDFLARE_TUNNEL_TOKEN}"]
     env_file:
-      - ./.env.tunnel                             # lives next to this compose file
+      - ${TUNNEL_ENV_FILE:-./.env.tunnel}
     volumes:
-      - /volume1/docker/portfolio/cloudflared:/etc/cloudflared
+      - ${TUNNEL_VOLUME:-/volume1/docker/portfolio/cloudflared}:/etc/cloudflared

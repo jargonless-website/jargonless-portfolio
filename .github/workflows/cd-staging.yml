@@ -1,0 +1,86 @@
+name: CD Staging
+
+on:
+  push:
+    branches: [staging]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_WEB: ghcr.io/jargonless-website/portfolio-web
+  IMAGE_API: ghcr.io/jargonless-website/portfolio-api
+  STACK_NAME: portfolio-stg
+  COMPOSE_PROJECT_NAME: portfolio-stg
+  APP_ENV_FILE: ./.env.production.stg
+  TUNNEL_ENV_FILE: ./.env.tunnel.stg
+  TUNNEL_VOLUME: /volume1/docker/portfolio/cloudflared-staging
+  WEB_IMAGE_TAG: staging
+  API_IMAGE_TAG: staging
+
+concurrency:
+  group: cd-staging-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy-staging:
+    runs-on: self-hosted
+    environment: staging
+
+    steps:
+      - name: Sync repo on NAS (/work)
+        working-directory: /work
+        run: |
+          set -euo pipefail
+          if [ ! -d .git ]; then
+            git clone https://github.com/jargonless-website/jargonless-portfolio .
+          fi
+          git fetch origin staging
+          git checkout -B staging origin/staging
+          git reset --hard origin/staging
+          git clean -fd
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.GHCR_USER }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Build & push WEB (staging)
+        working-directory: /work
+        run: |
+          set -euo pipefail
+          docker build -t ${IMAGE_WEB}:${GITHUB_SHA} ./apps/web
+          docker tag ${IMAGE_WEB}:${GITHUB_SHA} ${IMAGE_WEB}:${WEB_IMAGE_TAG}
+          docker push ${IMAGE_WEB}:${GITHUB_SHA}
+          docker push ${IMAGE_WEB}:${WEB_IMAGE_TAG}
+
+      - name: Build & push API (staging)
+        working-directory: /work
+        run: |
+          set -euo pipefail
+          docker build -t ${IMAGE_API}:${GITHUB_SHA} ./apps/api
+          docker tag ${IMAGE_API}:${GITHUB_SHA} ${IMAGE_API}:${API_IMAGE_TAG}
+          docker push ${IMAGE_API}:${GITHUB_SHA}
+          docker push ${IMAGE_API}:${API_IMAGE_TAG}
+
+      - name: Deploy stack (staging)
+        working-directory: /work
+        env:
+          COMPOSE_PROJECT_NAME: ${{ env.COMPOSE_PROJECT_NAME }}
+          STACK_NAME: ${{ env.STACK_NAME }}
+          APP_ENV_FILE: ${{ env.APP_ENV_FILE }}
+          TUNNEL_ENV_FILE: ${{ env.TUNNEL_ENV_FILE }}
+          TUNNEL_VOLUME: ${{ env.TUNNEL_VOLUME }}
+          WEB_IMAGE_TAG: ${{ env.WEB_IMAGE_TAG }}
+          API_IMAGE_TAG: ${{ env.API_IMAGE_TAG }}
+        run: |
+          set -euo pipefail
+          docker compose \
+            -f infra/compose/docker-compose.yml \
+            -f infra/compose/docker-compose.prod.yml \
+            --env-file infra/compose/.env.production.stg \
+            up -d --remove-orphans nginx api jl_tunnel
+
+      - name: Show container status
+        run: |
+          docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}' | grep -E 'portfolio-stg-(nginx|api|jl_tunnel)' || true
