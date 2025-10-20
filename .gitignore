@@ -33,8 +33,7 @@ gitleaks-*.sarif
 
 # env and tunnel creds
 .env
+.env.production.stg
 .env.tunnel
+.env.tunnel.stg
 .env.runner
-infra/compose/.env*
-!infra/compose/.env*.example
-cloudflared/
