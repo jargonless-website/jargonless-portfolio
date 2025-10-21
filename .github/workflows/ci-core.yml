@@ -17,6 +17,16 @@ jobs:
       - name: Prepare dummy env files for Compose validation
         run: |
           mkdir -p infra/compose
+
+          # PRD BASE
+          cat > infra/compose/.env.production <<'EOF'
+          ENV=production
+          CORS_ORIGINS=https://jargonless.ai
+          HOST_HTTP_PORT=8080
+          HOST_API_PORT=8000
+          EOF
+
+          # PRD TUNNEL
           cat > infra/compose/.env.tunnel <<'EOF'
           CLOUDFLARE_TUNNEL_TOKEN=dummy
           DOMAIN=jargonless.ai
@@ -26,18 +36,25 @@ jobs:
           PORTFOLIO_ENV=production
           EOF
 
-          cat > infra/compose/.env.production <<'EOF'
-          ENV=production
-          CORS_ORIGINS=https://jargonless.ai
-          EOF
-
+          # STG BASE
           cat > infra/compose/.env.production.stg <<'EOF'
           ENV=staging
           CORS_ORIGINS=https://staging.jargonless.ai
+          HOST_HTTP_PORT=8081
+          HOST_API_PORT=8001
           EOF
+
+          # STG TUNNEL
           cat > infra/compose/.env.tunnel.stg <<'EOF'
           CLOUDFLARE_TUNNEL_TOKEN=dummy
+          DOMAIN=staging.jargonless.ai
+          HOST_HTTP_PORT=8081
+          HOST_API_PORT=8001
+          NODE_ENV=staging
+          PORTFOLIO_ENV=staging
           EOF
+
+          # RUNNER
           cat > infra/compose/.env.runner <<'EOF'
           RUNNER_NAME=dummy
           RUNNER_TOKEN=dummy
