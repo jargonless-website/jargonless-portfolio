@@ -61,7 +61,7 @@ services:
     container_name: "${STACK_NAME:-portfolio}-jl_tunnel-1"
     image: cloudflare/cloudflared:latest
     restart: always
-    command: ["sh", "-lc", "tunnel run --token \"$CLOUDFLARE_TUNNEL_TOKEN\""]
+    command: ["tunnel", "run", "--token", "${CLOUDFLARE_TUNNEL_TOKEN}"]
     env_file:
       - ${TUNNEL_ENV_FILE:-./.env.tunnel}
     volumes:
@@ -69,3 +69,4 @@ services:
     networks: [webnet]
     logging: *common_logging
     <<: *common_resources
+    

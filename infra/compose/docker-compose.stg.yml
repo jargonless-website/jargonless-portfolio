@@ -57,7 +57,6 @@ services:
     container_name: "${STACK_NAME:-portfolio-stg}-jl_tunnel-1"
     image: cloudflare/cloudflared:latest
     restart: always
-    # token comes from exported env at deploy time; no env_file needed
     command: ["tunnel", "run", "--token", "${CLOUDFLARE_TUNNEL_TOKEN}"]
     volumes:
       - ${TUNNEL_VOLUME:-/volume1/docker/portfolio/cloudflared}:/etc/cloudflared
