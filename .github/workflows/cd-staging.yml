@@ -54,6 +54,24 @@ jobs:
           echo "Contents of ${TUNNEL_VOLUME}"
           ls -al "${TUNNEL_VOLUME}" || true
 
+      - name: Copy configuration for staging
+        run: |
+          set -euo pipefail
+          [ -s "${HOST_PROJECT_ROOT}/infra/compose/.env.production.stg" ] || { echo "::error::Missing ${HOST_PROJECT_ROOT}/infra/compose/.env.production.stg"; exit 1; }
+          [ -s "${HOST_PROJECT_ROOT}/infra/compose/.env.tunnel.stg" ] || { echo "::error::Missing ${HOST_PROJECT_ROOT}/infra/compose/.env.tunnel.stg"; exit 1; }
+          [ -f "${HOST_PROJECT_ROOT}/infra/nginx/nginx.staging.conf" ] || { echo "::error::Missing ${HOST_PROJECT_ROOT}/infra/nginx/nginx.staging.conf"; exit 1; }
+          mkdir -p "${WORKSPACE_ROOT}/infra/compose" "${WORKSPACE_ROOT}/infra/nginx/snippets"
+          cp "${HOST_PROJECT_ROOT}/infra/compose/.env.production.stg" "${WORKSPACE_ROOT}/infra/compose/.env.production.stg"
+          cp "${HOST_PROJECT_ROOT}/infra/compose/.env.tunnel.stg" "${WORKSPACE_ROOT}/infra/compose/.env.tunnel.stg"
+          cp "${HOST_PROJECT_ROOT}/infra/nginx/nginx.staging.conf" "${WORKSPACE_ROOT}/infra/nginx/nginx.staging.conf"
+          if [ -d "${HOST_PROJECT_ROOT}/infra/nginx/snippets" ]; then
+            rsync -a "${HOST_PROJECT_ROOT}/infra/nginx/snippets/" "${WORKSPACE_ROOT}/infra/nginx/snippets/"
+          fi
+          # ensure cloudflared host dir exists
+          mkdir -p "${TUNNEL_VOLUME}"
+          ls -al "${WORKSPACE_ROOT}/infra/nginx"
+          ls -al "${TUNNEL_VOLUME}" || true
+
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
