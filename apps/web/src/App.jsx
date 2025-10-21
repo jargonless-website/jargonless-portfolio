@@ -32,7 +32,7 @@ export default function App() {
         <ul className="mt-6 grid grid-cols-1 gap-3 text-sm text-zinc-700">
           <li className="rounded-xl border border-zinc-200 bg-white p-4 text-left">
             <span className="font-medium">What to expect</span> — posts that
-            embed Power BI, Grafana, notebooks, and a tiny ML demo.
+            embed Power BI, Grafana, notebooks, and ML demos.
           </li>
           <li className="rounded-xl border border-zinc-200 bg-white p-4 text-left">
             <span className="font-medium">Hosting</span> — served from a
