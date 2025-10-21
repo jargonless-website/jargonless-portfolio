@@ -1,0 +1,20 @@
+name: Deploy Staging
+permissions:
+  id-token: write
+  contents: read
+steps:
+- uses: actions/checkout@v3
+- name: Deploy via SSH
+  uses: appleboy/ssh-action@v0.1.8
+  with:
+    host: ${{ secrets.NAS_HOST }}
+    username: ${{ secrets.NAS_USER }}
+    key: ${{ secrets.NAS_PRIVATE_KEY }}
+    port: ${{ secrets.NAS_PORT }}
+    script: |
+      cd /volume1/docker/portfolio
+      git fetch origin
+      git checkout staging
+      git pull origin staging
+      chmod +x infra/scripts/deploy-staging.sh
+      infra/scripts/deploy-staging.sh
