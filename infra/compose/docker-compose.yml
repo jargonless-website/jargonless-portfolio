@@ -22,8 +22,8 @@ services:
   jl_tunnel:
     image: cloudflare/cloudflared:latest
     restart: always
-    # The token is exported by the workflow before compose runs.
-    command: ["tunnel", "run", "--token", "${CLOUDFLARE_TUNNEL_TOKEN}"]
+    # Support token provided either by host env (workflow) or service env_file
+    command: ["sh","-lc","tunnel run --token \"$CLOUDFLARE_TUNNEL_TOKEN\""]
     volumes:
       - ${TUNNEL_VOLUME:-/volume1/docker/portfolio/cloudflared}:/etc/cloudflared
     networks: [webnet]

@@ -33,6 +33,7 @@ gitleaks-*.sarif
 
 # env and tunnel creds
 .env
+.env.production
 .env.production.stg
 .env.tunnel
 .env.tunnel.stg

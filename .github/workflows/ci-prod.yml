@@ -20,8 +20,8 @@ jobs:
       IMAGE_API: ghcr.io/jargonless-website/portfolio-api
       STACK_NAME: portfolio
       COMPOSE_PROJECT_NAME: portfolio
-      WORKSPACE_ROOT: /work/.deploy/prod
-      HOST_PROJECT_ROOT: /work
+      WORKSPACE_ROOT: /volume1/docker/portfolio/.deploy/prod
+      HOST_PROJECT_ROOT: /volume1/docker/portfolio
       HOST_ENV_FILE: /work/infra/compose/.env.production
       HOST_TUNNEL_FILE: /work/infra/compose/.env.tunnel
       HOST_NGINX_CONFIG: /work/infra/nginx/nginx.conf
