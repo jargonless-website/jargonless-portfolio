@@ -12,7 +12,7 @@ services:
   nginx:
     container_name: "${STACK_NAME:-portfolio}-nginx-1"
     restart: unless-stopped
-    ports: []                                     # no host port in prod
+    ports: []  # no host ports; Cloudflare only
     environment: [NODE_ENV=production]
     volumes:
       - ${NGINX_CONFIG_PATH:-./../nginx/nginx.conf}:/etc/nginx/nginx.conf:ro
@@ -38,7 +38,7 @@ services:
     environment:
       - ENV=production
       - CORS_ORIGINS=https://jargonless.ai
-    ports: []                                     # no host port in prod
+    ports: []  # no host ports; Cloudflare only
     read_only: true
     tmpfs: [/tmp]
     security_opt: [no-new-privileges:true]
