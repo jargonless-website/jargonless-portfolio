@@ -108,28 +108,3 @@ jobs:
 
       - name: Show container status
         run: docker ps --format 'table {{.Names}}\t{{.Status}}' | grep -E 'portfolio-stg-(nginx|api|jl_tunnel)-1' || true
-
-      - name: Purge Cloudflare cache (staging) – index.html + current assets
-        env:
-          CF_ZONE_ID: ${{ secrets.CF_STAGING_ZONE_ID }}  # same zone as staging host
-          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-        run: |
-          set -euo pipefail
-          HOST=staging.jargonless.ai
-          # find the running nginx container for staging by compose labels
-          CID=$(docker ps --filter 'label=com.docker.compose.service=nginx' \
-                         --filter 'label=com.docker.compose.project=portfolio-stg' -q | head -n1)
-          [ -n "${CID}" ] || { echo "::error::staging nginx container not found"; exit 1; }
-
-          # extract asset URLs from the live index.html
-          ASSETS=$(docker exec "${CID}" sh -lc "grep -oE '/assets/[^\" ]+\\.(js|css)' /usr/share/nginx/html/index.html | sort -u" || true)
-
-          # build JSON payload with only environment-specific URLs
-          EXTRA=$(printf '%s\n' "${ASSETS}" | sed -e "s#^#,\"https://${HOST}#")
-          PAYLOAD=$(printf '{"files": ["https://%s/index.html"%s]}' "${HOST}" "${EXTRA}")
-
-          echo "Purging: ${PAYLOAD}"
-          curl -sS -X POST "https://api.cloudflare.com/client/v4/zones/${CF_ZONE_ID}/purge_cache" \
-            -H "Authorization: Bearer ${CF_API_TOKEN}" \
-            -H "Content-Type: application/json" \
-            --data "${PAYLOAD}" | tee /dev/stderr | jq -e '.success == true' >/dev/null
