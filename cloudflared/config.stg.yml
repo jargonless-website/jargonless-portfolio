@@ -2,8 +2,11 @@
 ingress:
   - hostname: staging.jargonless.ai
     service: http://nginx:80
+  - hostname: api.staging.jargonless.ai
+    service: http://api:8000
   - service: http_status:404
 
+# Top-level (same indent as 'ingress:')
 protocol: http2
 edge-ip-version: "4"
 no-autoupdate: true

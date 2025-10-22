@@ -1,13 +1,10 @@
-# Cloudflared ingress mapping through the Tunnel
-# Hostnames must exist in Cloudflare DNS and point to your tunnel CNAME (Terraform created these).
-# Services below must match your Docker service names + internal ports.
-
+# Cloudflared staging (kept for reference; token mode uses CF dashboard config)
 ingress:
   - hostname: jargonless.ai
-    service: http://nginx:80        # send root domain → nginx container:80
+    service: http://nginx:80
   - hostname: api.jargonless.ai
-    service: http://api:8000        # send api subdomain → api container:8000
-  - service: http_status:404         # default catch-all
+    service: http://api:8000
+  - service: http_status:404
 
 # Top-level (same indent as 'ingress:')
 protocol: http2
