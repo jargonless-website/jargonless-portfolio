@@ -29,6 +29,9 @@ services:
       start_period: 20s
     logging: *common_logging
     <<: *common_resources
+    networks:
+      webnet:
+        aliases: [nginx]
 
   api:
     container_name: "${STACK_NAME:-portfolio}-api-1"
@@ -56,6 +59,9 @@ services:
       start_period: 10s
     logging: *common_logging
     <<: *common_resources
+    networks:
+      webnet:
+        aliases: [api]
 
   jl_tunnel:
     container_name: "${STACK_NAME:-portfolio}-jl_tunnel-1"
@@ -66,7 +72,12 @@ services:
       - ${TUNNEL_ENV_FILE:-./.env.tunnel}
     volumes:
       - ${TUNNEL_VOLUME:-/volume1/docker/portfolio/cloudflared}:/etc/cloudflared
-    networks: [webnet]
     logging: *common_logging
     <<: *common_resources
-    
+    networks:
+      webnet:
+        aliases: [jl_tunnel]
+
+networks:
+  webnet:
+    name: portfolio_webnet
