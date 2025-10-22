@@ -30,14 +30,14 @@ jobs:
 
       - name: Build & push WEB
         run: |
-          docker build -t ghcr.io/jargonless-website/portfolio-web:${{ github.sha }} ./apps/web
+          docker build -f ./apps/web/Dockerfile -t ghcr.io/jargonless-website/portfolio-web:${{ github.sha }} ./apps/web
           docker tag ghcr.io/jargonless-website/portfolio-web:${{ github.sha }} ghcr.io/jargonless-website/portfolio-web:latest
           docker push ghcr.io/jargonless-website/portfolio-web:${{ github.sha }}
           docker push ghcr.io/jargonless-website/portfolio-web:latest
 
       - name: Build & push API
         run: |
-          docker build -t ghcr.io/jargonless-website/portfolio-api:${{ github.sha }} ./apps/api
+          docker build -f ./apps/api/Dockerfile -t ghcr.io/jargonless-website/portfolio-api:${{ github.sha }} ./apps/api
           docker tag ghcr.io/jargonless-website/portfolio-api:${{ github.sha }} ghcr.io/jargonless-website/portfolio-api:latest
           docker push ghcr.io/jargonless-website/portfolio-api:${{ github.sha }}
           docker push ghcr.io/jargonless-website/portfolio-api:latest
