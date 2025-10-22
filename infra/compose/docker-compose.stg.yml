@@ -70,8 +70,6 @@ services:
     command: ["tunnel", "run", "--token", "${CLOUDFLARE_TUNNEL_TOKEN}"]
     env_file:
       - ${TUNNEL_ENV_FILE:-./.env.tunnel.stg}
-    volumes:
-      - ${TUNNEL_VOLUME:-/volume1/docker/portfolio/cloudflared-staging}:/etc/cloudflared
     logging: *common_logging
     <<: *common_resources
     networks:

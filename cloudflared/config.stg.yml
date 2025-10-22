@@ -1,9 +1,7 @@
-
+# Cloudflared staging (kept for reference; token mode uses CF dashboard config)
 ingress:
   - hostname: staging.jargonless.ai
     service: http://nginx:80
-  - hostname: api.staging.jargonless.ai
-    service: http://api:8000
   - service: http_status:404
 
 protocol: http2
