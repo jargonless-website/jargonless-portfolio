@@ -10,7 +10,7 @@
 
 **Self‑hosted analytics + ML portfolio**. Continuous Integration & Deployment with a NAS‑hosted self‑runner and automated GHCR publishing.
 
-_Last updated: Oct 2025_
+_Last updated: October 2025_
 
 ---
 
