@@ -1,4 +1,4 @@
-# 🧠 Jargonless Portfolio — Week 4 (CI/CD Automation)
+# 🧠 Jargonless Portfolio
 
 ![React](https://img.shields.io/badge/Frontend-React%2018-61dafb?logo=react)
 ![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi)
@@ -8,13 +8,13 @@
 ![GitHub Actions](https://img.shields.io/badge/CI/CD-GitHub%20Actions-2088FF?logo=githubactions)
 ![License](https://img.shields.io/badge/License-Private-darkred)
 
-**Self‑hosted analytics + ML portfolio**. This release completes **Week 4** — Continuous Integration & Deployment with a NAS‑hosted self‑runner and automated GHCR publishing.
+**Self‑hosted analytics + ML portfolio**. Continuous Integration & Deployment with a NAS‑hosted self‑runner and automated GHCR publishing.
 
 _Last updated: Oct 2025_
 
 ---
 
-## ✅ What’s new in Week 4
+## ✅ What’s new
 - **Self‑hosted GitHub Actions runner (NAS)** → `nas-runner` with labels `nas,synology,docker`.
 - **CI/CD pipeline** via `.github/workflows/ci-core.yml` + `deploy.yml`.
 - **Auto‑build & push** Docker images to **GitHub Container Registry (GHCR)**.
@@ -30,7 +30,7 @@ _Last updated: Oct 2025_
 - **Public:** https://jargonless.ai  
 - **LAN:** `http://<NAS-IP>:8080` (web), `http://<NAS-IP>:8000/api/health` (api)
 
-### Containers (Week 4)
+### Containers
 ```
 portfolio-nginx-1      → web (React build served via Nginx)
 portfolio-api-1        → FastAPI backend
@@ -59,12 +59,6 @@ All are healthy and restart automatically on DSM boot.
      ```
   4. Health verification (`curl /api/health` → HTTP 200).
 
-### Repository Secrets
-| Name | Purpose |
-|------|----------|
-| `GHCR_USER` | GitHub username (`jargonless-website`) |
-| `GHCR_WRITE_TOKEN` | Classic PAT with `repo, write:packages` |
-| `NAS_HOST`, `NAS_USER`, `NAS_SSH_KEY` | Used by deploy workflow if SSH deploy is configured |
 
 ---
 
@@ -78,36 +72,32 @@ All are healthy and restart automatically on DSM boot.
 │   ├── compose/
 │   │   ├── docker-compose.yml
 │   │   ├── docker-compose.prod.yml
+│   │   ├── docker-compose.stg.yml
 │   │   ├── docker-compose.runner.yml
-│   │   ├── .env.production (not in git)
-│   │   ├── .env.tunnel (not in git)
-│   │   ├── .env.runner (not in git)
+│   │   ├── .env.production
+│   │   ├── .env.production.stg
 │   └── nginx/
 │       ├── nginx.conf
-│       └── snippets/
+│       └── nginx.staging.conf
 ├── cloudflared/
+│   ├── config.stg.yml   
 │   └── config.yml
 └── .github/workflows/
+    ├── build-images.yml
     ├── ci-core.yml
-    ├── deploy.yml
-    └── (future) cd-staging.yml
+    ├── ci-prod.yml
+    └── cd-staging.yml
 ```
 
 ---
 
-## 🧠 Next milestone — Week 5 (Staging)
-- Add `staging.jargonless.ai` + `api.staging.jargonless.ai` to Cloudflare ingress.
-- Create `docker-compose.staging.yml` override.
-- New workflow `cd-staging.yml` (manual deploy).
-- Add `.env.production.stg` with `CORS_ORIGINS=https://staging.jargonless.ai`.
+## 🧠 Next milestone — PostgreSQL + Strapi
+- Create PostgreSQL database 
+- Add 'strappi' to `jargonless.ai`
+- Confirm posts arrive to each environment.
 
 ---
 
-## 🔒 Notes
-- Secrets remain local to NAS (`.env.*` files ignored by Git).  
-- No SSH password logins; deploy automation uses GH runner (rootless soon).  
-- Cron / rc.d script ensures auto‑restart after DSM reboot.  
-- GHCR images tagged with both SHA and `latest` for reproducible rollbacks.
 
 © 2025 William Reed · Jargonless — All rights reserved
 

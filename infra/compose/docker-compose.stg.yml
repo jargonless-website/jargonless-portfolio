@@ -1,4 +1,3 @@
-# Staging overlay: harden containers and mount Nginx from repo
 x-common-logging: &common_logging
   driver: json-file
   options: { max-size: "10m", max-file: "5" }
@@ -13,11 +12,11 @@ services:
   nginx:
     container_name: "${STACK_NAME:-portfolio-stg}-nginx-1"
     restart: unless-stopped
-    environment: [NODE_ENV=production]
-    ports: []                                   # no host ports; Cloudflare only
+    ports: []  # no host ports; Cloudflare only
+    environment: [NODE_ENV=staging]
     volumes:
-      - ../nginx/nginx.staging.conf:/etc/nginx/nginx.conf:ro
-      - ../nginx/snippets:/etc/nginx/snippets:ro
+      - ${NGINX_CONFIG_PATH:-./../nginx/nginx.staging.conf}:/etc/nginx/nginx.conf:ro
+      - ${NGINX_SNIPPETS_PATH:-./../nginx/snippets}:/etc/nginx/snippets:ro
     read_only: true
     tmpfs: [/var/cache/nginx, /var/run, /var/log/nginx]
     security_opt: [no-new-privileges:true]
@@ -30,11 +29,19 @@ services:
       start_period: 20s
     logging: *common_logging
     <<: *common_resources
+    networks:
+      webnet:
+        aliases: [nginx]
 
   api:
     container_name: "${STACK_NAME:-portfolio-stg}-api-1"
     restart: unless-stopped
-    # ENV and CORS_ORIGINS come from the --env-file passed by the workflow
+    env_file:
+      - ${APP_ENV_FILE:-./.env.production.stg}
+    environment:
+      - ENV=staging
+      - CORS_ORIGINS=https://staging.jargonless.ai
+    ports: []  # no host ports; Cloudflare only
     read_only: true
     tmpfs: [/tmp]
     security_opt: [no-new-privileges:true]
@@ -52,13 +59,23 @@ services:
       start_period: 10s
     logging: *common_logging
     <<: *common_resources
+    networks:
+      webnet:
+        aliases: [api]
 
   jl_tunnel:
     container_name: "${STACK_NAME:-portfolio-stg}-jl_tunnel-1"
     image: cloudflare/cloudflared:latest
     restart: always
     command: ["tunnel", "run", "--token", "${CLOUDFLARE_TUNNEL_TOKEN}"]
-    volumes:
-      - ${TUNNEL_VOLUME:-/volume1/docker/portfolio/cloudflared}:/etc/cloudflared
+    env_file:
+      - ${TUNNEL_ENV_FILE:-./.env.tunnel.stg}
     logging: *common_logging
     <<: *common_resources
+    networks:
+      webnet:
+        aliases: [jl_tunnel]
+
+networks:
+  webnet:
+    name: portfolio-stg_webnet

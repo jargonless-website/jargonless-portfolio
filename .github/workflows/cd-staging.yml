@@ -8,26 +8,33 @@ concurrency:
   group: cd-staging-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_WEB: ghcr.io/jargonless-website/portfolio-web
-  IMAGE_API: ghcr.io/jargonless-website/portfolio-api
-  STACK_NAME: portfolio-stg
-  COMPOSE_PROJECT_NAME: portfolio-stg
-  WORKSPACE_ROOT: /volume1/docker/portfolio/.deploy/staging
-  HOST_PROJECT_ROOT: /volume1/docker/portfolio
-  APP_ENV_FILE: /volume1/docker/portfolio/infra/compose/.env.production.stg
-  TUNNEL_ENV_FILE: /volume1/docker/portfolio/infra/compose/.env.tunnel.stg
-  TUNNEL_VOLUME: /volume1/docker/portfolio/cloudflared-staging
-  WEB_IMAGE_TAG: staging
-  API_IMAGE_TAG: staging
-
 jobs:
   deploy-staging:
     runs-on: self-hosted
     environment: staging
 
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_WEB: ghcr.io/jargonless-website/portfolio-web
+      IMAGE_API: ghcr.io/jargonless-website/portfolio-api
+      STACK_NAME: portfolio-stg
+      COMPOSE_PROJECT_NAME: portfolio-stg
+      WORKSPACE_ROOT: /volume1/docker/portfolio/.deploy/staging
+      HOST_PROJECT_ROOT: /volume1/docker/portfolio
+      HOST_ENV_FILE: /work/infra/compose/.env.production.stg
+      HOST_TUNNEL_FILE: /work/infra/compose/.env.tunnel.stg
+      HOST_NGINX_CONFIG: /work/infra/nginx/nginx.staging.conf
+      HOST_NGINX_SNIPPETS: /work/infra/nginx/snippets
+      HOST_TUNNEL_VOLUME: /volume1/docker/portfolio/cloudflared
+
     steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.GHCR_USER }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
       - name: Prepare staging workspace
         run: |
           set -euo pipefail
@@ -44,96 +51,60 @@ jobs:
             git clone --branch staging https://github.com/jargonless-website/jargonless-portfolio "${WORKSPACE_ROOT}"
           fi
 
-      - name: Inspect mounted project paths
+      - name: Copy staging configuration
         run: |
           set -euo pipefail
-          echo "Contents of ${HOST_PROJECT_ROOT:-/work}/infra/compose"
-          ls -al "${HOST_PROJECT_ROOT:-/work}/infra/compose" || true
-          echo "Contents of ${HOST_PROJECT_ROOT:-/work}/infra/nginx"
-          ls -al "${HOST_PROJECT_ROOT:-/work}/infra/nginx" || true
-          echo "Contents of ${TUNNEL_VOLUME}"
-          ls -al "${TUNNEL_VOLUME}" || true
-
-      - name: Copy configuration for staging
-        run: |
-          set -euo pipefail
-          [ -s "${HOST_PROJECT_ROOT}/infra/compose/.env.production.stg" ] || { echo "::error::Missing ${HOST_PROJECT_ROOT}/infra/compose/.env.production.stg"; exit 1; }
-          [ -s "${HOST_PROJECT_ROOT}/infra/compose/.env.tunnel.stg" ] || { echo "::error::Missing ${HOST_PROJECT_ROOT}/infra/compose/.env.tunnel.stg"; exit 1; }
-          [ -f "${HOST_PROJECT_ROOT}/infra/nginx/nginx.staging.conf" ] || { echo "::error::Missing ${HOST_PROJECT_ROOT}/infra/nginx/nginx.staging.conf"; exit 1; }
-          mkdir -p "${WORKSPACE_ROOT}/infra/compose" "${WORKSPACE_ROOT}/infra/nginx/snippets"
-          cp "${HOST_PROJECT_ROOT}/infra/compose/.env.production.stg" "${WORKSPACE_ROOT}/infra/compose/.env.production.stg"
-          cp "${HOST_PROJECT_ROOT}/infra/compose/.env.tunnel.stg" "${WORKSPACE_ROOT}/infra/compose/.env.tunnel.stg"
-          cp "${HOST_PROJECT_ROOT}/infra/nginx/nginx.staging.conf" "${WORKSPACE_ROOT}/infra/nginx/nginx.staging.conf"
-          if [ -d "${HOST_PROJECT_ROOT}/infra/nginx/snippets" ]; then
-            rsync -a "${HOST_PROJECT_ROOT}/infra/nginx/snippets/" "${WORKSPACE_ROOT}/infra/nginx/snippets/"
+          [ -s "${HOST_ENV_FILE}" ] || { echo "::error::Missing ${HOST_ENV_FILE}"; exit 1; }
+          [ -s "${HOST_TUNNEL_FILE}" ] || { echo "::error::Missing ${HOST_TUNNEL_FILE}"; exit 1; }
+          [ -f "${HOST_NGINX_CONFIG}" ] || { echo "::error::Missing ${HOST_NGINX_CONFIG}"; exit 1; }
+          mkdir -p "${WORKSPACE_ROOT}/infra/compose"
+          cp "${HOST_ENV_FILE}" "${WORKSPACE_ROOT}/infra/compose/.env.production.stg"
+          cp "${HOST_TUNNEL_FILE}" "${WORKSPACE_ROOT}/infra/compose/.env.tunnel.stg"
+          mkdir -p "${WORKSPACE_ROOT}/infra/nginx"
+          cp "${HOST_NGINX_CONFIG}" "${WORKSPACE_ROOT}/infra/nginx/nginx.staging.conf"
+          if [ -d "${HOST_NGINX_SNIPPETS}" ]; then
+            mkdir -p "${WORKSPACE_ROOT}/infra/nginx/snippets"
+            rsync -a "${HOST_NGINX_SNIPPETS}/" "${WORKSPACE_ROOT}/infra/nginx/snippets/"
+          else
+            mkdir -p "${WORKSPACE_ROOT}/infra/nginx/snippets"
           fi
-          # ensure cloudflared host dir exists
-          mkdir -p "${TUNNEL_VOLUME}"
-          ls -al "${WORKSPACE_ROOT}/infra/nginx"
-          ls -al "${TUNNEL_VOLUME}" || true
+          mkdir -p "${HOST_TUNNEL_VOLUME}"
 
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.GHCR_USER }}
-          password: ${{ secrets.GHCR_TOKEN }}
-
-      - name: Build and push WEB (staging)
-        working-directory: ${{ env.WORKSPACE_ROOT }}
+      - name: Inspect workspace
         run: |
           set -euo pipefail
-          docker build -t ${IMAGE_WEB}:${GITHUB_SHA} ./apps/web
-          docker tag  ${IMAGE_WEB}:${GITHUB_SHA} ${IMAGE_WEB}:${WEB_IMAGE_TAG}
-          docker push ${IMAGE_WEB}:${GITHUB_SHA}
-          docker push ${IMAGE_WEB}:${WEB_IMAGE_TAG}
+          echo "Workspace compose dir"
+          ls -al "${WORKSPACE_ROOT}/infra/compose" || true
+          echo "Workspace nginx dir"
+          ls -al "${WORKSPACE_ROOT}/infra/nginx" || true
+          echo "Cloudflared volume dir"
+          ls -al "${HOST_TUNNEL_VOLUME}" || true
 
-      - name: Build and push API (staging)
-        working-directory: ${{ env.WORKSPACE_ROOT }}
+      - name: Pull images (staging)
         run: |
-          set -euo pipefail
-          docker build -t ${IMAGE_API}:${GITHUB_SHA} ./apps/api
-          docker tag  ${IMAGE_API}:${GITHUB_SHA} ${IMAGE_API}:${API_IMAGE_TAG}
-          docker push ${IMAGE_API}:${GITHUB_SHA}
-          docker push ${IMAGE_API}:${API_IMAGE_TAG}
-
-      - name: Debug env file existence
-        run: |
-          echo "Listing in /volume1/docker/portfolio/infra/compose:"
-          ls -al /volume1/docker/portfolio/infra/compose
-          echo "Listing in /volume1/docker/portfolio/.deploy/staging/infra/compose:"
-          ls -al /volume1/docker/portfolio/.deploy/staging/infra/compose
-          echo "Trying to read the env file:"
-          cat /volume1/docker/portfolio/infra/compose/.env.production.stg || echo "File missing"
+          docker pull ${IMAGE_WEB}:staging
+          docker pull ${IMAGE_API}:staging
 
       - name: Deploy stack (staging)
         working-directory: ${{ env.WORKSPACE_ROOT }}
         env:
           COMPOSE_PROJECT_NAME: ${{ env.COMPOSE_PROJECT_NAME }}
           STACK_NAME: ${{ env.STACK_NAME }}
-          APP_ENV_FILE: ${{ env.APP_ENV_FILE }}
-          TUNNEL_ENV_FILE: ${{ env.TUNNEL_ENV_FILE }}
-          WEB_IMAGE_TAG: ${{ env.WEB_IMAGE_TAG }}
-          API_IMAGE_TAG: ${{ env.API_IMAGE_TAG }}
+          APP_ENV_FILE: ${{ env.WORKSPACE_ROOT }}/infra/compose/.env.production.stg
+          TUNNEL_ENV_FILE: ${{ env.WORKSPACE_ROOT }}/infra/compose/.env.tunnel.stg
+          TUNNEL_VOLUME: ${{ env.HOST_TUNNEL_VOLUME }}
         run: |
           set -euo pipefail
-
-          # Ensure env files exist and token is present
-          [ -s "$APP_ENV_FILE" ]    || { echo "::error::Missing $APP_ENV_FILE"; exit 1; }
-          [ -s "$TUNNEL_ENV_FILE" ] || { echo "::error::Missing $TUNNEL_ENV_FILE"; exit 1; }
-          TUN_TOKEN="$(sed -n 's/^CLOUDFLARE_TUNNEL_TOKEN=//p' "$TUNNEL_ENV_FILE")"
-          [ -n "$TUN_TOKEN" ] || { echo "::error::CLOUDFLARE_TUNNEL_TOKEN empty in $TUNNEL_ENV_FILE"; exit 1; }
-
-          # Export token for the tunnel service
-          export CLOUDFLARE_TUNNEL_TOKEN="$TUN_TOKEN"
-
-          # Bring up only the needed services for staging
+          [ -s "${APP_ENV_FILE}" ] || { echo "::error::Missing ${APP_ENV_FILE}"; exit 1; }
+          [ -s "${TUNNEL_ENV_FILE}" ] || { echo "::error::Missing ${TUNNEL_ENV_FILE}"; exit 1; }
+          token_value="$(sed -n 's/^CLOUDFLARE_TUNNEL_TOKEN=//p' "${TUNNEL_ENV_FILE}")"
+          [ -n "${token_value}" ] || { echo "::error::CLOUDFLARE_TUNNEL_TOKEN empty"; exit 1; }
+          export CLOUDFLARE_TUNNEL_TOKEN="${token_value}"
           docker compose \
             -f infra/compose/docker-compose.yml \
             -f infra/compose/docker-compose.stg.yml \
-            --env-file "$APP_ENV_FILE" \
+            --env-file "${APP_ENV_FILE}" \
             up -d --remove-orphans nginx api jl_tunnel
 
       - name: Show container status
-        run: |
-          docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}' | grep -E 'portfolio-stg-(nginx|api|jl_tunnel)' || true
+        run: docker ps --format 'table {{.Names}}\t{{.Status}}' | grep -E 'portfolio-stg-(nginx|api|jl_tunnel)-1' || true
