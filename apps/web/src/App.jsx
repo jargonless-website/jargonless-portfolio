@@ -1,12 +1,12 @@
-import { useState } from "react";
+import React, { useState } from 'react'
 
 export default function App() {
-  const [email, setEmail] = useState("");
-  const [submitted, setSubmitted] = useState(false);
+  const [email, setEmail] = useState('')
+  const [submitted, setSubmitted] = useState(false)
 
   function handleSubmit(e) {
-    e.preventDefault();
-    setSubmitted(true);
+    e.preventDefault()
+    setSubmitted(true)
   }
 
   return (
