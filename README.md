@@ -8,7 +8,7 @@
 ![GitHub Actions](https://img.shields.io/badge/CI/CD-GitHub%20Actions-2088FF?logo=githubactions)
 ![License](https://img.shields.io/badge/License-Private-darkred)
 
-**Self‑hosted analytics + ML portfolio**. Continuous Integration & Deployment with a NAS‑hosted self‑runner and automated GHCR publishing.
+**Self‑hosted analytics + ML portfolio**
 
 _Last updated: October 2025_
 
@@ -100,5 +100,3 @@ All are healthy and restart automatically on DSM boot.
 
 
 © 2025 William Reed · Jargonless — All rights reserved
-
-test
