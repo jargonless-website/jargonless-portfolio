@@ -51,8 +51,10 @@ export default function App() {
           </label>
           <input
             id="email"
+            name="email"
             type="email"
             inputMode="email"
+            autoComplete="email"
             placeholder="Get a heads-up when we go live"
             className="flex-1 rounded-xl border border-zinc-300 bg-white px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-black"
             value={email}
