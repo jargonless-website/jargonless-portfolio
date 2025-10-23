@@ -1,0 +1,20 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Chrome: Vite Dev",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}/apps/web",
+      "runtimeArgs": ["--new-window"],
+      "preLaunchTask": "vite:dev",
+      "postDebugTask": "vite:stop",
+      "serverReadyAction": {
+        "pattern": "Local:\\s+(http://localhost:5173/?)",
+        "uriFormat": "%s",
+        "action": "openExternally"
+      }
+    }
+  ]
+}
