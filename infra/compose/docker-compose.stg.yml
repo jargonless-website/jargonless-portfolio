@@ -10,7 +10,6 @@ x-common-resources: &common_resources
 
 services:
   nginx:
-    container_name: "${STACK_NAME:-portfolio-stg}-nginx-1"
     restart: unless-stopped
     ports: []  # no host ports; Cloudflare only
     environment: [NODE_ENV=staging]
@@ -22,19 +21,16 @@ services:
     security_opt: [no-new-privileges:true]
     cap_drop: [NET_ADMIN, SYS_ADMIN]
     healthcheck:
-      test: ["CMD-SHELL","wget -qO- http://localhost/ || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost/ || exit 1"]
       interval: 15s
       timeout: 3s
       retries: 10
       start_period: 20s
     logging: *common_logging
     <<: *common_resources
-    networks:
-      webnet:
-        aliases: [nginx]
+    networks: [webnet]
 
   api:
-    container_name: "${STACK_NAME:-portfolio-stg}-api-1"
     restart: unless-stopped
     env_file:
       - ${APP_ENV_FILE:-./.env.production.stg}
@@ -59,12 +55,9 @@ services:
       start_period: 10s
     logging: *common_logging
     <<: *common_resources
-    networks:
-      webnet:
-        aliases: [api]
+    networks: [webnet]
 
   jl_tunnel:
-    container_name: "${STACK_NAME:-portfolio-stg}-jl_tunnel-1"
     image: cloudflare/cloudflared:latest
     restart: always
     command: ["tunnel", "run", "--token", "${CLOUDFLARE_TUNNEL_TOKEN}"]
@@ -72,10 +65,8 @@ services:
       - ${TUNNEL_ENV_FILE:-./.env.tunnel.stg}
     logging: *common_logging
     <<: *common_resources
-    networks:
-      webnet:
-        aliases: [jl_tunnel]
+    networks: [webnet]
 
 networks:
   webnet:
-    name: portfolio-stg_webnet
+    driver: bridge
