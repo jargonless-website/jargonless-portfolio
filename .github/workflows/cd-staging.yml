@@ -94,7 +94,8 @@ jobs:
           APP_ENV_FILE: ${{ env.WORKSPACE_ROOT }}/infra/compose/.env.production.stg
           TUNNEL_ENV_FILE: ${{ env.WORKSPACE_ROOT }}/infra/compose/.env.tunnel.stg
           TUNNEL_VOLUME: ${{ env.HOST_TUNNEL_VOLUME }}
-          # No WEB_IMAGE_TAG/API_IMAGE_TAG passed → docker-compose.yml defaults to :latest (prod)
+          WEB_IMAGE_TAG: latest
+          API_IMAGE_TAG: latest
         run: |
           set -euo pipefail
           [ -s "${APP_ENV_FILE}" ] || { echo "::error::Missing ${APP_ENV_FILE}"; exit 1; }
