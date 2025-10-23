@@ -1,5 +1,3 @@
-name: "${STACK_NAME:-portfolio}"
-
 networks:
   webnet:
     driver: bridge
