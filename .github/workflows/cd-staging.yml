@@ -2,16 +2,20 @@ name: CD Staging
 
 on:
   push:
-    branches: [staging]
-
-concurrency:
-  group: cd-staging-${{ github.ref }}
-  cancel-in-progress: true
+    branches: [ staging ]
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type EXACTLY: deploy-staging"
+        required: true
+        type: string
 
 jobs:
   deploy-staging:
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/staging') || (github.event_name == 'workflow_dispatch' && inputs.confirm == 'deploy-staging')
     runs-on: self-hosted
     environment: staging
+
     env:
       REGISTRY: ghcr.io
       IMAGE_WEB: ghcr.io/jargonless-website/portfolio-web
@@ -55,18 +59,19 @@ jobs:
           set -euo pipefail
           [ -s "${HOST_ENV_FILE}" ] || { echo "::error::Missing ${HOST_ENV_FILE}"; exit 1; }
           [ -s "${HOST_TUNNEL_FILE}" ] || { echo "::error::Missing ${HOST_TUNNEL_FILE}"; exit 1; }
+          [ -f "${HOST_NGINX_CONFIG}" ] || { echo "::error::Missing ${HOST_NGINX_CONFIG}"; exit 1; }
+
           mkdir -p "${WORKSPACE_ROOT}/infra/compose"
           cp "${HOST_ENV_FILE}"    "${WORKSPACE_ROOT}/infra/compose/.env.production.stg"
           cp "${HOST_TUNNEL_FILE}" "${WORKSPACE_ROOT}/infra/compose/.env.tunnel.stg"
 
-          # >>> Use the same nginx.conf and snippets as prod
-          [ -f "${HOST_NGINX_CONFIG}" ] || { echo "::error::Missing ${HOST_NGINX_CONFIG}"; exit 1; }
           mkdir -p "${WORKSPACE_ROOT}/infra/nginx"
           cp "${HOST_NGINX_CONFIG}" "${WORKSPACE_ROOT}/infra/nginx/nginx.conf"
-
-          mkdir -p "${WORKSPACE_ROOT}/infra/nginx/snippets"
           if [ -d "${HOST_NGINX_SNIPPETS}" ]; then
+            mkdir -p "${WORKSPACE_ROOT}/infra/nginx/snippets"
             rsync -a "${HOST_NGINX_SNIPPETS}/" "${WORKSPACE_ROOT}/infra/nginx/snippets/"
+          else
+            mkdir -p "${WORKSPACE_ROOT}/infra/nginx/snippets"
           fi
 
           mkdir -p "${HOST_TUNNEL_VOLUME}"
@@ -81,7 +86,7 @@ jobs:
           echo "Cloudflared volume dir"
           ls -al "${HOST_TUNNEL_VOLUME}" || true
 
-      - name: Pull images (use staging images)
+      - name: Pull images (staging-latest)
         run: |
           docker pull ${IMAGE_WEB}:staging-latest
           docker pull ${IMAGE_API}:staging-latest
@@ -94,8 +99,8 @@ jobs:
           APP_ENV_FILE: ${{ env.WORKSPACE_ROOT }}/infra/compose/.env.production.stg
           TUNNEL_ENV_FILE: ${{ env.WORKSPACE_ROOT }}/infra/compose/.env.tunnel.stg
           TUNNEL_VOLUME: ${{ env.HOST_TUNNEL_VOLUME }}
-          WEB_IMAGE_TAG: staging-latest     # was: latest
-          API_IMAGE_TAG: staging-latest     # was: latest
+          WEB_IMAGE_TAG: staging-latest
+          API_IMAGE_TAG: staging-latest
         run: |
           set -euo pipefail
           [ -s "${APP_ENV_FILE}" ] || { echo "::error::Missing ${APP_ENV_FILE}"; exit 1; }
@@ -103,16 +108,12 @@ jobs:
           token_value="$(sed -n 's/^CLOUDFLARE_TUNNEL_TOKEN=//p' "${TUNNEL_ENV_FILE}")"
           [ -n "${token_value}" ] || { echo "::error::CLOUDFLARE_TUNNEL_TOKEN empty"; exit 1; }
           export CLOUDFLARE_TUNNEL_TOKEN="${token_value}"
-          docker image rm -f ${IMAGE_WEB}:staging-latest || true
-          docker image rm -f ${IMAGE_API}:staging-latest || true
-          docker pull ${IMAGE_WEB}:staging-latest
-          docker pull ${IMAGE_API}:staging-latest
+
           docker compose \
             -f infra/compose/docker-compose.yml \
             -f infra/compose/docker-compose.stg.yml \
             --env-file "${APP_ENV_FILE}" \
             up -d --remove-orphans nginx api jl_tunnel
 
-
       - name: Show container status
-        run: docker ps --format 'table {{.Names}}\t{{.Status}}' | grep -E 'portfolio-stg-(nginx|api|jl_tunnel)-1' || true
+        run: docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}' | grep -E 'portfolio-stg-(nginx|api|jl_tunnel)-1' || true

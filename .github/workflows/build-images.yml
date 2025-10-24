@@ -3,6 +3,7 @@ name: Build & Push Images
 on:
   push:
     branches: [ main, staging ]
+
 jobs:
   build-and-push:
     if: github.event_name != 'pull_request'
@@ -29,21 +30,26 @@ jobs:
       - name: Set tags per branch
         id: tags
         run: |
-          if [ "${GITHUB_REF##*/}" = "main" ]; then
+          BRANCH="${GITHUB_REF##*/}"
+          echo "Branch: ${BRANCH}"
+          if [ "${BRANCH}" = "main" ]; then
             echo "WEB_TAG1=latest" >> $GITHUB_OUTPUT
             echo "WEB_TAG2=${GITHUB_SHA}" >> $GITHUB_OUTPUT
             echo "API_TAG1=latest" >> $GITHUB_OUTPUT
             echo "API_TAG2=${GITHUB_SHA}" >> $GITHUB_OUTPUT
-          else
+          elif [ "${BRANCH}" = "staging" ]; then
             echo "WEB_TAG1=staging-latest" >> $GITHUB_OUTPUT
             echo "WEB_TAG2=staging-${GITHUB_SHA}" >> $GITHUB_OUTPUT
             echo "API_TAG1=staging-latest" >> $GITHUB_OUTPUT
             echo "API_TAG2=staging-${GITHUB_SHA}" >> $GITHUB_OUTPUT
+          else
+            echo "::error::Unexpected branch ${BRANCH}"; exit 1
           fi
+          echo "Web tags: ${{ steps.tags.outputs.WEB_TAG2 }} , ${{ steps.tags.outputs.WEB_TAG1 }}"
+          echo "API tags: ${{ steps.tags.outputs.API_TAG2 }} , ${{ steps.tags.outputs.API_TAG1 }}"
 
       - name: Build & push WEB
         run: |
-          # Optional: cache-bust still fine
           CACHE_BUSTER=$(date +%s)
           docker build --no-cache --build-arg CACHE_BUSTER=${CACHE_BUSTER} \
             -f ./apps/web/Dockerfile \
@@ -54,7 +60,10 @@ jobs:
 
       - name: Build & push API
         run: |
-          docker build -f ./apps/api/Dockerfile -t ghcr.io/jargonless-website/portfolio-api:${{ steps.tags.outputs.API_TAG2 }} ./apps/api
+          CACHE_BUSTER=$(date +%s)
+          docker build --no-cache --build-arg CACHE_BUSTER=${CACHE_BUSTER} \
+            -f ./apps/api/Dockerfile \
+            -t ghcr.io/jargonless-website/portfolio-api:${{ steps.tags.outputs.API_TAG2 }} ./apps/api
           docker tag ghcr.io/jargonless-website/portfolio-api:${{ steps.tags.outputs.API_TAG2 }} ghcr.io/jargonless-website/portfolio-api:${{ steps.tags.outputs.API_TAG1 }}
           docker push ghcr.io/jargonless-website/portfolio-api:${{ steps.tags.outputs.API_TAG2 }}
           docker push ghcr.io/jargonless-website/portfolio-api:${{ steps.tags.outputs.API_TAG1 }}
