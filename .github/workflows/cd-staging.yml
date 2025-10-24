@@ -81,10 +81,24 @@ jobs:
           echo "Cloudflared volume dir"
           ls -al "${HOST_TUNNEL_VOLUME}" || true
 
-      - name: Pull images (use prod images for perfect parity)
+      - name: Build images (staging)
+        working-directory: ${{ env.WORKSPACE_ROOT }}
+        env:
+          IMAGE_WEB: ${{ env.IMAGE_WEB }}
+          IMAGE_API: ${{ env.IMAGE_API }}
         run: |
-          docker pull ${IMAGE_WEB}:latest
-          docker pull ${IMAGE_API}:latest
+          set -euo pipefail
+          echo "Building WEB from staging workspace..."
+          docker build \
+            --build-arg CACHE_BUSTER=$(date +%s) \
+            -f ./apps/web/Dockerfile \
+            -t ${IMAGE_WEB}:staging-${GITHUB_SHA} \
+            ./apps/web
+          echo "Building API from staging workspace..."
+          docker build \
+            -f ./apps/api/Dockerfile \
+            -t ${IMAGE_API}:staging-${GITHUB_SHA} \
+            ./apps/api
 
       - name: Deploy stack (staging)
         working-directory: ${{ env.WORKSPACE_ROOT }}
@@ -94,8 +108,8 @@ jobs:
           APP_ENV_FILE: ${{ env.WORKSPACE_ROOT }}/infra/compose/.env.production.stg
           TUNNEL_ENV_FILE: ${{ env.WORKSPACE_ROOT }}/infra/compose/.env.tunnel.stg
           TUNNEL_VOLUME: ${{ env.HOST_TUNNEL_VOLUME }}
-          WEB_IMAGE_TAG: latest
-          API_IMAGE_TAG: latest
+          WEB_IMAGE_TAG: staging-${{ github.sha }} 
+          API_IMAGE_TAG: staging-${{ github.sha }} 
         run: |
           set -euo pipefail
           [ -s "${APP_ENV_FILE}" ] || { echo "::error::Missing ${APP_ENV_FILE}"; exit 1; }
