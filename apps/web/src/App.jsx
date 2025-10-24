@@ -21,30 +21,26 @@ export default function App() {
 
         {/* Headline and subhead */}
         <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">
-          Jargonless is coming soon
+          Jargonless is Evolving
         </h1>
         <p className="mt-3 text-base md:text-lg text-zinc-600">
-          A self-hosted portfolio for analytics and machine learning. Clean,
-          fast, and private by design.
+          A creative lab for data storytelling, automation, and machine learning where insight meets design.
         </p>
 
         {/* Callouts */}
         <ul className="mt-6 grid grid-cols-1 gap-3 text-sm text-zinc-700">
           <li className="rounded-xl border border-zinc-200 bg-white p-4 text-left">
-            <span className="font-medium">What to expect</span> — posts that
-            embed Power BI, Grafana, notebooks, and ML demos.
+            <span className="font-medium">What’s inside</span> — Interactive posts that blend Power BI dashboards, notebooks, and AI experiments into real-world narratives.
           </li>
           <li className="rounded-xl border border-zinc-200 bg-white p-4 text-left">
-            <span className="font-medium">Hosting</span> — served from a
-            Synology NAS through Cloudflare with strong security defaults.
+            <span className="font-medium">The craft</span> — From raw datasets to polished visuals, every project is an experiment in clarity. Tools change, curiosity stays constant.
           </li>
           <li className="rounded-xl border border-zinc-200 bg-white p-4 text-left">
-            <span className="font-medium">Timeline</span> — alpha landing page
-            first, then content hubs.
+            <span className="font-medium">Coming soon</span> — Independent projects in analytics and machine learning built to inform, not to impress.
           </li>
         </ul>
 
-        {/* Email capture */}
+        {/* Email capture
         <form onSubmit={handleSubmit} className="mt-8 flex gap-2">
           <label htmlFor="email" className="sr-only">
             Email
@@ -71,7 +67,7 @@ export default function App() {
           <p className="mt-2 text-sm text-emerald-700" role="status">
             Thanks. We’ll notify you closer to launch.
           </p>
-        )}
+        )} */}
 
         {/* Footer */}
         <footer className="mt-10 text-xs text-zinc-500">
