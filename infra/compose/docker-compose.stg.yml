@@ -14,8 +14,8 @@ services:
     ports: []  # no host ports; Cloudflare only
     environment: [NODE_ENV=staging]
     volumes:
-      - ../nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ../nginx/snippets:/etc/nginx/snippets:ro
+      - ${NGINX_CONFIG_PATH:-./../nginx/nginx.conf}:/etc/nginx/nginx.conf:ro
+      - ${NGINX_SNIPPETS_PATH:-./../nginx/snippets}:/etc/nginx/snippets:ro
     read_only: true
     tmpfs: [/var/cache/nginx, /var/run, /var/log/nginx]
     security_opt: [no-new-privileges:true]
