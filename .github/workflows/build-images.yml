@@ -30,7 +30,10 @@ jobs:
 
       - name: Build & push WEB
         run: |
-          docker build -f ./apps/web/Dockerfile -t ghcr.io/jargonless-website/portfolio-web:${{ github.sha }} ./apps/web
+          CACHE_BUSTER=$(date +%s)
+          docker build --no-cache --build-arg CACHE_BUSTER=${CACHE_BUSTER} \
+            -f ./apps/web/Dockerfile \
+            -t ghcr.io/jargonless-website/portfolio-web:${{ github.sha }} ./apps/web
           docker tag ghcr.io/jargonless-website/portfolio-web:${{ github.sha }} ghcr.io/jargonless-website/portfolio-web:latest
           docker push ghcr.io/jargonless-website/portfolio-web:${{ github.sha }}
           docker push ghcr.io/jargonless-website/portfolio-web:latest
