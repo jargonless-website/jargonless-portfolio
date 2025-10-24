@@ -98,6 +98,8 @@ jobs:
           TUNNEL_VOLUME: ${{ env.HOST_TUNNEL_VOLUME }}
           WEB_IMAGE_TAG: staging-latest
           API_IMAGE_TAG: staging-latest
+          NGINX_CONFIG_PATH: ${{ env.WORKSPACE_ROOT }}/infra/nginx/nginx.conf
+          NGINX_SNIPPETS_PATH: ${{ env.WORKSPACE_ROOT }}/infra/nginx/snippets
         run: |
           set -euo pipefail
           [ -s "${APP_ENV_FILE}" ] || { echo "::error::Missing ${APP_ENV_FILE}"; exit 1; }
