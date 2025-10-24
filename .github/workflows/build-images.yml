@@ -2,8 +2,7 @@ name: Build & Push Images
 
 on:
   push:
-    branches: [ main ]
-
+    branches: [ main, staging ]
 jobs:
   build-and-push:
     if: github.event_name != 'pull_request'
@@ -12,9 +11,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          clean: true
-          fetch-depth: 0
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -30,19 +26,35 @@ jobs:
           for i in 1 2 3; do docker pull nginx:1.27-alpine && break || sleep 5; done
           for i in 1 2 3; do docker pull python:3.11-slim && break || sleep 5; done
 
+      - name: Set tags per branch
+        id: tags
+        run: |
+          if [ "${GITHUB_REF##*/}" = "main" ]; then
+            echo "WEB_TAG1=latest" >> $GITHUB_OUTPUT
+            echo "WEB_TAG2=${GITHUB_SHA}" >> $GITHUB_OUTPUT
+            echo "API_TAG1=latest" >> $GITHUB_OUTPUT
+            echo "API_TAG2=${GITHUB_SHA}" >> $GITHUB_OUTPUT
+          else
+            echo "WEB_TAG1=staging-latest" >> $GITHUB_OUTPUT
+            echo "WEB_TAG2=staging-${GITHUB_SHA}" >> $GITHUB_OUTPUT
+            echo "API_TAG1=staging-latest" >> $GITHUB_OUTPUT
+            echo "API_TAG2=staging-${GITHUB_SHA}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build & push WEB
         run: |
+          # Optional: cache-bust still fine
           CACHE_BUSTER=$(date +%s)
           docker build --no-cache --build-arg CACHE_BUSTER=${CACHE_BUSTER} \
             -f ./apps/web/Dockerfile \
-            -t ghcr.io/jargonless-website/portfolio-web:${{ github.sha }} ./apps/web
-          docker tag ghcr.io/jargonless-website/portfolio-web:${{ github.sha }} ghcr.io/jargonless-website/portfolio-web:latest
-          docker push ghcr.io/jargonless-website/portfolio-web:${{ github.sha }}
-          docker push ghcr.io/jargonless-website/portfolio-web:latest
+            -t ghcr.io/jargonless-website/portfolio-web:${{ steps.tags.outputs.WEB_TAG2 }} ./apps/web
+          docker tag ghcr.io/jargonless-website/portfolio-web:${{ steps.tags.outputs.WEB_TAG2 }} ghcr.io/jargonless-website/portfolio-web:${{ steps.tags.outputs.WEB_TAG1 }}
+          docker push ghcr.io/jargonless-website/portfolio-web:${{ steps.tags.outputs.WEB_TAG2 }}
+          docker push ghcr.io/jargonless-website/portfolio-web:${{ steps.tags.outputs.WEB_TAG1 }}
 
       - name: Build & push API
         run: |
-          docker build -f ./apps/api/Dockerfile -t ghcr.io/jargonless-website/portfolio-api:${{ github.sha }} ./apps/api
-          docker tag ghcr.io/jargonless-website/portfolio-api:${{ github.sha }} ghcr.io/jargonless-website/portfolio-api:latest
-          docker push ghcr.io/jargonless-website/portfolio-api:${{ github.sha }}
-          docker push ghcr.io/jargonless-website/portfolio-api:latest
+          docker build -f ./apps/api/Dockerfile -t ghcr.io/jargonless-website/portfolio-api:${{ steps.tags.outputs.API_TAG2 }} ./apps/api
+          docker tag ghcr.io/jargonless-website/portfolio-api:${{ steps.tags.outputs.API_TAG2 }} ghcr.io/jargonless-website/portfolio-api:${{ steps.tags.outputs.API_TAG1 }}
+          docker push ghcr.io/jargonless-website/portfolio-api:${{ steps.tags.outputs.API_TAG2 }}
+          docker push ghcr.io/jargonless-website/portfolio-api:${{ steps.tags.outputs.API_TAG1 }}
