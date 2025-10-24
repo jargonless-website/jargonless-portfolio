@@ -22,6 +22,8 @@ services:
       - ${NGINX_CONFIG_PATH:-./../nginx/nginx.conf}:/etc/nginx/nginx.conf:ro
       - ${NGINX_SNIPPETS_PATH:-./../nginx/snippets}:/etc/nginx/snippets:ro
     security_opt: [no-new-privileges:true]
+    cap_add:
+      - NET_BIND_SERVICE
     cap_drop: [NET_ADMIN, SYS_ADMIN]
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost/ || exit 1"]
